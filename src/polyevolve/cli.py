@@ -26,19 +26,17 @@ if TYPE_CHECKING:
     from polyevolve.evolution.evaluator import EvalResult
 
 
-def _render(cur: psycopg.Cursor) -> None:
+def _render(cur: psycopg.Cursor, *, title: str = "") -> None:
+    from polyevolve.cli_ui import color, table
+
     cols = [d.name for d in cur.description or []]
     rows = cur.fetchall()
     if not rows:
-        print("(no rows)")
+        print(color(f"  {title or 'query'}: (no rows)", "dim"))
         return
-    widths = [max(len(c), *(len(_fmt(r[i])) for r in rows)) for i, c in enumerate(cols)]
-    header = "  ".join(c.ljust(widths[i]) for i, c in enumerate(cols))
-    print(header)
-    print("  ".join("-" * w for w in widths))
-    for r in rows:
-        print("  ".join(_fmt(v).ljust(widths[i]) for i, v in enumerate(r)))
-    print(f"\n({len(rows)} rows)")
+    trows = [[_fmt(v) for v in r] for r in rows]
+    print(table(cols, trows, title=title))
+    print(color(f"  ({len(rows)} rows)", "dim"))
 
 
 def _fmt(v: Any) -> str:
@@ -47,40 +45,48 @@ def _fmt(v: Any) -> str:
     return str(v)
 
 
-def _query(cfg: Config, sql: str, params: tuple[Any, ...] = ()) -> None:
+def _query(cfg: Config, sql: str, params: tuple[Any, ...] = (), *, title: str = "") -> None:
     with psycopg.connect(cfg.db_url) as conn, conn.cursor() as cur:
         cur.execute(sql, params)
-        _render(cur)
+        _render(cur, title=title)
 
 
 def cmd_predictions(cfg: Config, args: argparse.Namespace) -> None:
-    _query(cfg, "SELECT * FROM v_recent_predictions LIMIT %s", (args.limit,))
+    _query(
+        cfg,
+        "SELECT * FROM v_recent_predictions LIMIT %s",
+        (args.limit,),
+        title="recent predictions",
+    )
 
 
 def cmd_calibration(cfg: Config, args: argparse.Namespace) -> None:
-    print("=== Decile calibration (resolved markets only) ===")
-    _query(cfg, "SELECT * FROM calibration")
-    print("\n=== Calibration vs market (contract objective) ===")
-    _query(cfg, "SELECT * FROM v_calibration_vs_market")
+    _query(cfg, "SELECT * FROM calibration", title="decile calibration (resolved markets only)")
+    print()
+    _query(cfg, "SELECT * FROM v_calibration_vs_market", title="calibration vs market")
 
 
 def cmd_cost(cfg: Config, args: argparse.Namespace) -> None:
-    _query(cfg, "SELECT * FROM v_cost")
+    from polyevolve.cli_ui import color
+
+    _query(cfg, "SELECT * FROM v_cost", title="token usage + estimated cost")
     with psycopg.connect(cfg.db_url) as conn, conn.cursor() as cur:
         cur.execute("SELECT ROUND(SUM(estimated_cost_usd), 4) FROM llm_calls")
         total = cur.fetchone()
-        print(f"\nTotal estimated cost: ${(total[0] if total and total[0] else 0)}")
+        print(color(f"  total estimated cost: ${(total[0] if total and total[0] else 0)}", "bold"))
 
 
 def cmd_runs(cfg: Config, args: argparse.Namespace) -> None:
-    _query(cfg, "SELECT * FROM v_run_summary")
+    _query(cfg, "SELECT * FROM v_run_summary", title="per-day run summary")
 
 
 def cmd_coverage(cfg: Config, args: argparse.Namespace) -> None:
-    _query(cfg, "SELECT * FROM v_market_coverage")
+    _query(cfg, "SELECT * FROM v_market_coverage", title="market coverage by status")
 
 
 def cmd_backtest(cfg: Config, args: argparse.Namespace) -> None:
+    from polyevolve.cli_ui import color
+
     run = args.run
     if run is None:
         with psycopg.connect(cfg.db_url) as conn, conn.cursor() as cur:
@@ -88,11 +94,15 @@ def cmd_backtest(cfg: Config, args: argparse.Namespace) -> None:
             row = cur.fetchone()
             run = row[0] if row else None
     if run is None:
-        print("(no backtest runs yet)")
+        print(color("  (no backtest runs yet)", "dim"))
         return
-    print(f"=== Backtest run: {run} ===")
-    print("Trust ONLY the is_clean=true / holdout cohort for go/no-go.\n")
-    _query(cfg, "SELECT * FROM v_backtest_calibration WHERE run_id = %s", (run,))
+    _query(
+        cfg,
+        "SELECT * FROM v_backtest_calibration WHERE run_id = %s",
+        (run,),
+        title=f"backtest run: {run}",
+    )
+    print(color("  trust ONLY the is_clean=true / holdout cohort for go/no-go.", "dim"))
 
 
 def cmd_snapshot(cfg: Config, args: argparse.Namespace) -> None:
@@ -127,21 +137,32 @@ def cmd_snapshots(cfg: Config, args: argparse.Namespace) -> None:
                MAX(resolved_at)::date AS latest
         FROM eval_snapshots GROUP BY snapshot_set ORDER BY snapshot_set
         """,
+        title="frozen eval snapshot sets",
     )
 
 
 def _print_eval(label: str, result: EvalResult) -> None:
+    from polyevolve.cli_ui import color, panel
+
     r = result
-    print(f"\n=== {label} ===")
-    print(f"  n_total={r.n_total} n_clean={r.n_clean} priced_clean={r.n_priced_clean}")
-    print(f"  cache: {r.cache_hits} hits, {r.cache_misses} misses, {r.failed} failed")
 
     def fmt(x: float | None) -> str:
         return f"{x:+.4f}" if x is not None else "n/a"
 
-    print(f"  brier_train={fmt(r.brier_train)}  brier_holdout={fmt(r.brier_holdout)}")
-    print(f"  edge_train ={fmt(r.edge_train)}  edge_holdout ={fmt(r.edge_holdout)}")
-    print(f"  combined_score={fmt(r.combined_score)}  (holdout is the trustworthy one)")
+    note = color("(holdout is the trustworthy one)", "dim")
+    print()
+    print(
+        panel(
+            [
+                f"n_total {r.n_total}   n_clean {r.n_clean}   priced_clean {r.n_priced_clean}",
+                f"cache   {r.cache_hits} hits, {r.cache_misses} misses, {r.failed} failed",
+                f"brier   train {fmt(r.brier_train)}   holdout {fmt(r.brier_holdout)}",
+                f"edge    train {fmt(r.edge_train)}   holdout {fmt(r.edge_holdout)}",
+                f"score   {fmt(r.combined_score)}   {note}",
+            ],
+            title=label,
+        )
+    )
 
 
 def cmd_evaluate(cfg: Config, args: argparse.Namespace) -> None:
