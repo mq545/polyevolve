@@ -290,11 +290,39 @@ def cmd_traces(cfg: Config, args: argparse.Namespace) -> None:
 
 def cmd_scout(cfg: Config, args: argparse.Namespace) -> None:
     """Efficiency map: category x thinness. Live, read-only Gamma scan (WP5)."""
-    from polyevolve.scout.efficiency import efficiency_map, format_table
+    from polyevolve.cli_ui import color, table
+    from polyevolve.scout.efficiency import _f, _money, efficiency_map
 
     cats = args.categories or None
     rows = efficiency_map(cats, limit_per_tag=args.limit_per_tag, top_n=args.top_n)
-    print(format_table(rows))
+    headers = ["category", "thin", "n", "med_liq", "med_vol", "spread", "liqT", "volT", "sprT"]
+    trows = [
+        [
+            r.category,
+            _f(r.thinness),
+            str(r.n_markets),
+            _money(r.median_liquidity).strip(),
+            _money(r.median_volume).strip(),
+            _f(r.mean_spread),
+            _f(r.liquidity_thinness, 2),
+            _f(r.volume_thinness, 2),
+            _f(r.spread_thinness, 2),
+        ]
+        for r in rows
+    ]
+    print()
+    print(table(headers, trows, title="polymarket scout  -  category x thinness"))
+    print(color("  thin = inefficiency proxy in [0,1] (1=thinnest); hunt top rows first.", "dim"))
+    leads = [r for r in rows if r.thinnest]
+    if leads:
+        print(color("\n  thinnest individual markets (concrete leads):", "bold"))
+        for r in leads:
+            print(color(f"  [{r.category}]", "cyan"))
+            for m in r.thinnest:
+                print(
+                    f"    thin={_f(m.thinness)} liq={_money(m.liquidity).strip()} "
+                    f"vol={_money(m.volume).strip()} spr={_f(m.spread)}  {m.question[:54]}"
+                )
 
 
 def cmd_run(cfg: Config, args: argparse.Namespace) -> None:
@@ -324,26 +352,41 @@ def cmd_run(cfg: Config, args: argparse.Namespace) -> None:
         edge_type=args.edge_type,
     )
 
+    from polyevolve.cli_ui import color, panel
+
+    print()
     print(
-        f"=== EXPERIMENT: {args.market} / {args.forecaster} "
-        f"(connectors={args.connectors or '[]'}, lead={args.lead_days}d) ==="
+        panel(
+            [
+                f"market      {args.market}",
+                f"forecaster  {args.forecaster}",
+                f"connectors  {', '.join(args.connectors) or '(none)'}",
+                f"lead        {args.lead_days} days  -  {len(results.markets)} markets forecast",
+            ],
+            title="polyevolve run",
+        )
     )
-    print(f"markets forecast: {len(results.markets)}\n")
+    print()
     for m in results.markets:
         crowd = f"{m.crowd_prob:.3f}" if m.crowd_prob is not None else " n/a "
         div = f"{m.divergence:+.3f}" if m.divergence is not None else "  n/a "
+        divc = "yellow" if (m.divergence is not None and abs(m.divergence) >= 0.05) else "dim"
         print(
-            f"  [{m.confidence:>6}] fair={m.fair_prob:.3f} crowd={crowd} div={div}  "
-            f"{m.question[:60]}"
+            f"  [{m.confidence:>6}] fair={m.fair_prob:.3f} crowd={crowd} "
+            f"div={color(div, divc)}  {m.question[:60]}"
         )
-        used = ", ".join(m.connectors_used) or "(none)"
-        print(f"           connectors: {used}")
+        print(color(f"           connectors: {', '.join(m.connectors_used) or '(none)'}", "dim"))
 
     report = evaluate(results)
-    print(f"\nRUBRIC: {report.summary()}")
+    pass_n = sum(1 for c in report.checks if c.passed)
+    rows = []
     for c in report.checks:
-        mark = "PASS" if c.passed else "FAIL"
-        print(f"  [{mark}] {c.name}: {c.detail}")
+        mark = color("PASS", "green") if c.passed else color("FAIL", "red")
+        rows.append(f"{mark}  {c.name}: {c.detail}")
+    verdict_c = "green" if pass_n == len(report.checks) else "yellow"
+    rows.append(color(f"{pass_n}/{len(report.checks)} checks passed", verdict_c))
+    print()
+    print(panel(rows, title="rubric"))
 
     if args.no_ledger:
         print("\n(--no-ledger: nothing logged to the forward ledger)")

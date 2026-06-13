@@ -50,6 +50,36 @@ def panel(rows: list[str], *, title: str = "") -> str:
     return "\n".join([top, *body, bottom])
 
 
+def table(headers: list[str], rows: list[list[str]], *, title: str = "") -> str:
+    """Render a boxed table with right-aligned numeric-looking cells, ANSI-aware widths.
+
+    A cell is right-aligned when its visible text (ignoring color) parses as a number;
+    text cells stay left-aligned. The header row is bolded and rule-separated.
+    """
+
+    def _isnum(s: str) -> bool:
+        try:
+            float(_ANSI_RE.sub("", s).replace("+", "").replace("%", ""))
+            return True
+        except ValueError:
+            return False
+
+    ncol = len(headers)
+    widths = [_vlen(headers[i]) for i in range(ncol)]
+    for r in rows:
+        for i in range(ncol):
+            widths[i] = max(widths[i], _vlen(r[i]) if i < len(r) else 0)
+
+    def _cell(text: str, i: int, *, head: bool = False) -> str:
+        pad = widths[i] - _vlen(text)
+        body = (" " * pad + text) if (not head and _isnum(text)) else (text + " " * pad)
+        return color(body, "bold") if head else body
+
+    head = "  ".join(_cell(h, i, head=True) for i, h in enumerate(headers))
+    body = ["  ".join(_cell(r[i] if i < len(r) else "", i) for i in range(ncol)) for r in rows]
+    return panel([head, "─" * _vlen(head), *body], title=title)
+
+
 def spark(values: list[float]) -> str:
     """A unicode sparkline for a small numeric series (min->max scaled)."""
     if not values:
