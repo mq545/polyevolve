@@ -94,7 +94,6 @@ def forecast_event(
     pools: Sequence[EvidencePool],
     *,
     model_id: str = "ollama/qwen3:30b-a3b-instruct-2507-q4_K_M",
-    anthropic_api_key: str | None = None,
     exhaustive: bool = False,
 ) -> list[Forecast]:
     """Forecast one event's sibling markets jointly. Returns Forecasts aligned 1:1.
@@ -127,7 +126,7 @@ def forecast_event(
         f"EVIDENCE (shared for the whole event):\n{ev_block}\n\n"
         "Submit the full distribution via submit_distribution."
     )
-    model = build_model(model_id=model_id, anthropic_api_key=anthropic_api_key)
+    model = build_model(model_id=model_id)
     try:
         res = model.complete_with_tool(
             cached_system_blocks=[_SYS_PROMPT],
@@ -182,7 +181,6 @@ def joint_genome_over(
     *,
     fallback: Genome,
     model_id: str = "ollama/qwen3:30b-a3b-instruct-2507-q4_K_M",
-    anthropic_api_key: str | None = None,
 ) -> list[Forecast]:
     """Forecast a corpus with JOINT inference per multi-market event.
 
@@ -208,7 +206,6 @@ def joint_genome_over(
             [qs[i] for i in idxs],
             [ps[i] for i in idxs],
             model_id=model_id,
-            anthropic_api_key=anthropic_api_key,
         )
         for i, fc in zip(idxs, fcs, strict=True):
             out[i] = fc

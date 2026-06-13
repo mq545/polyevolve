@@ -222,7 +222,7 @@ class LLMEnsembleForecaster:
         if self._model is None:
             from polyevolve.models import build_model
 
-            self._model = build_model(model_id=self._model_id, anthropic_api_key=None)
+            self._model = build_model(model_id=self._model_id)
         return self._model
 
     def predict(self, market: Market, context: str) -> Prediction:

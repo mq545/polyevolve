@@ -19,8 +19,8 @@ Contract (see polyevolve.reason.dsl, which we MUST NOT modify):
     samples     list[float]      - per-draw p_yes from ensemble (audit)
 - Leakage rule: evidence-touching nodes use `pool.on_or_before(question.as_of)` only.
 - Network: ONLY via an injected model built by `build_model`. Every model-using factory
-  takes `model_id` (and optional `anthropic_api_key`) and builds the client lazily at call
-  time, so tests can monkeypatch `polyevolve.reason.nodes.build_model` and hit no network.
+  takes `model_id` and builds the client lazily at call time, so tests can monkeypatch
+  `polyevolve.reason.nodes.build_model` and hit no network.
 """
 
 from __future__ import annotations
@@ -64,9 +64,9 @@ def _clip01(x: float) -> float:
     return float(min(1.0, max(0.0, x)))
 
 
-def _make_model(model_id: str, anthropic_api_key: str | None) -> Model:
+def _make_model(model_id: str) -> Model:
     """Build a model client. Isolated so tests monkeypatch `build_model` here."""
-    return build_model(model_id=model_id, anthropic_api_key=anthropic_api_key)
+    return build_model(model_id=model_id)
 
 
 def _render_evidence(items: Sequence[EvidenceItem], limit: int = 40) -> str:
@@ -122,8 +122,6 @@ _PREDICTION_TOOL: dict[str, Any] = {
 def call_model(
     system_prompt: str | None = None,
     model_id: str = "ollama/qwen3:30b-a3b-instruct-2507-q4_K_M",
-    *,
-    anthropic_api_key: str | None = None,
 ) -> Node:
     """Forecast P(YES) over the question + `state.selected` evidence.
 
@@ -137,7 +135,7 @@ def call_model(
     )
 
     def _node(state: ReasoningState) -> ReasoningState:
-        model = _make_model(model_id, anthropic_api_key)
+        model = _make_model(model_id)
         # Feature-aware + grounded (additive): if upstream nodes built derived features or
         # assessed data quality, reason over those; otherwise behave exactly as before.
         feats = str(state.beliefs.get("features_text", "")).strip()
@@ -200,7 +198,6 @@ _DECOMPOSE_TOOL: dict[str, Any] = {
 def decompose(
     model_id: str = "ollama/qwen3:30b-a3b-instruct-2507-q4_K_M",
     *,
-    anthropic_api_key: str | None = None,
     max_subqs: int = 4,
 ) -> Node:
     """LLM splits the question into 2-4 sub-questions; store in beliefs['subqs']."""
@@ -211,7 +208,7 @@ def decompose(
     )
 
     def _node(state: ReasoningState) -> ReasoningState:
-        model = _make_model(model_id, anthropic_api_key)
+        model = _make_model(model_id)
         res = model.complete_with_tool(
             cached_system_blocks=[sys_prompt],
             user_content=_question_block(state.question),
@@ -235,7 +232,6 @@ def ensemble(
     k: int = 3,
     model_id: str | Sequence[str] = "ollama/qwen3:30b-a3b-instruct-2507-q4_K_M",
     *,
-    anthropic_api_key: str | None = None,
     aggregate: str = "trimmed_mean",
     system_prompt: str | None = None,
 ) -> Node:
@@ -271,9 +267,7 @@ def ensemble(
         samples: list[float] = []
         rationales: list[str] = []
         for mid in models:
-            sub = call_model(
-                system_prompt=system_prompt, model_id=mid, anthropic_api_key=anthropic_api_key
-            )(state)
+            sub = call_model(system_prompt=system_prompt, model_id=mid)(state)
             samples.append(_clip01(float(sub.beliefs.get("p_yes", 0.5))))
             if sub.beliefs.get("rationale"):
                 rationales.append(str(sub.beliefs["rationale"]))
@@ -322,7 +316,6 @@ _CRITIQUE_TOOL: dict[str, Any] = {
 def debate_critique(
     model_id: str = "ollama/qwen3:30b-a3b-instruct-2507-q4_K_M",
     *,
-    anthropic_api_key: str | None = None,
     system_prompt: str | None = None,
 ) -> Node:
     """Propose -> critique/refute -> revise the p_yes once.
@@ -332,13 +325,11 @@ def debate_critique(
 
     def _node(state: ReasoningState) -> ReasoningState:
         if "p_yes" not in state.beliefs:
-            state = call_model(
-                system_prompt=system_prompt, model_id=model_id, anthropic_api_key=anthropic_api_key
-            )(state)
+            state = call_model(system_prompt=system_prompt, model_id=model_id)(state)
         proposed = _clip01(float(state.beliefs.get("p_yes", 0.5)))
         prior_rationale = str(state.beliefs.get("rationale", ""))
 
-        model = _make_model(model_id, anthropic_api_key)
+        model = _make_model(model_id)
         sys_prompt = (
             "You are a skeptical red-team forecaster. A colleague proposed a probability. "
             "Find the strongest reasons it is mis-calibrated (anchoring, base-rate neglect, "
@@ -428,7 +419,6 @@ def select_evidence(
     *,
     mode: str = "heuristic",
     model_id: str = "ollama/qwen3:30b-a3b-instruct-2507-q4_K_M",
-    anthropic_api_key: str | None = None,
 ) -> Node:
     """Choose/rank up to k leakage-safe items into state.selected.
 
@@ -456,7 +446,7 @@ def select_evidence(
                 chosen = ranked
         elif mode == "llm":
             try:
-                model = _make_model(model_id, anthropic_api_key)
+                model = _make_model(model_id)
                 listing = _render_evidence(candidates, limit=60)
                 res = model.complete_with_tool(
                     cached_system_blocks=[
@@ -557,8 +547,6 @@ _QUANTITY_TOOL: dict[str, Any] = {
 
 def latent_threshold(
     model_id: str = "ollama/qwen3:30b-a3b-instruct-2507-q4_K_M",
-    *,
-    anthropic_api_key: str | None = None,
 ) -> Node:
     """Coherence node for THRESHOLD/BAND questions (the proper seat-market fix).
 
@@ -576,7 +564,7 @@ def latent_threshold(
     )
 
     def _node(state: ReasoningState) -> ReasoningState:
-        model = _make_model(model_id, anthropic_api_key)
+        model = _make_model(model_id)
         feats = str(state.beliefs.get("features_text", "")).strip()
         feat_block = f"DERIVED FEATURES:\n{feats}\n\n" if feats else ""
         user = (
@@ -622,7 +610,6 @@ def latent_threshold(
 def latent_to_prob(
     model_id: str = "ollama/qwen3:30b-a3b-instruct-2507-q4_K_M",
     *,
-    anthropic_api_key: str | None = None,
     threshold: float = 0.0,
     direction: str = "above",
     latent_description: str = (
@@ -645,7 +632,7 @@ def latent_to_prob(
     )
 
     def _node(state: ReasoningState) -> ReasoningState:
-        model = _make_model(model_id, anthropic_api_key)
+        model = _make_model(model_id)
         user = (
             f"{_question_block(state.question)}\n\n"
             f"EVIDENCE:\n{_render_evidence(state.selected)}\n\n"
@@ -835,7 +822,6 @@ _VALIDATION_TOOL: dict[str, Any] = {
 def validate_evidence(
     model_id: str = "ollama/qwen3:30b-a3b-instruct-2507-q4_K_M",
     *,
-    anthropic_api_key: str | None = None,
     min_keep: int = 0,
 ) -> Node:
     """Validate evidence BEFORE inference - the guard against garbage-in.
@@ -861,7 +847,7 @@ def validate_evidence(
             state.beliefs["key_signal_present"] = False
             state.beliefs["validation_notes"] = "no evidence"
             return state.log("validate_evidence: no evidence -> dq=0.0")
-        model = _make_model(model_id, anthropic_api_key)
+        model = _make_model(model_id)
         user = (
             f"{_question_block(state.question)}\n\n"
             f"EVIDENCE:\n{_render_evidence(items)}\n\n"
@@ -942,8 +928,6 @@ _FEATURES_TOOL: dict[str, Any] = {
 
 def extract_features(
     model_id: str = "ollama/qwen3:30b-a3b-instruct-2507-q4_K_M",
-    *,
-    anthropic_api_key: str | None = None,
 ) -> Node:
     """LLM-driven, open-ended FEATURE CONSTRUCTION - the deeper-reasoning lever.
 
@@ -965,7 +949,7 @@ def extract_features(
 
     def _node(state: ReasoningState) -> ReasoningState:
         items = list(state.selected) or state.pool.on_or_before(state.question.as_of)
-        model = _make_model(model_id, anthropic_api_key)
+        model = _make_model(model_id)
         user = (
             f"{_question_block(state.question)}\n\n"
             f"EVIDENCE:\n{_render_evidence(items)}\n\n"

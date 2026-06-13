@@ -170,7 +170,7 @@ def cmd_evaluate(cfg: Config, args: argparse.Namespace) -> None:
     from polyevolve.evolution.genome import default_genome
     from polyevolve.models import build_model
 
-    model = build_model(model_id=args.model, anthropic_api_key=cfg.anthropic_api_key)
+    model = build_model(model_id=args.model)
     result = evaluate(
         genome=default_genome(),
         model=model,
@@ -187,7 +187,7 @@ def cmd_sweep(cfg: Config, args: argparse.Namespace) -> None:
 
     genome = default_genome()
     for model_id in args.models:
-        model = build_model(model_id=model_id, anthropic_api_key=cfg.anthropic_api_key)
+        model = build_model(model_id=model_id)
         result = evaluate(
             genome=genome, model=model, db_url=cfg.db_url, snapshot_set=args.snapshot_set
         )
@@ -319,8 +319,7 @@ def cmd_evolve(cfg: Config, args: argparse.Namespace) -> None:
         changed = [
             (k, v)
             for k, v in vars(res.knobs).items()
-            if k not in ("system_prompt", "anthropic_api_key", "model_id")
-            and v != getattr(knobs, k, None)
+            if k not in ("system_prompt", "model_id") and v != getattr(knobs, k, None)
         ]
         if changed:
             print("  evolved  " + "  ".join(f"{k}: {getattr(knobs, k)}->{v}" for k, v in changed))

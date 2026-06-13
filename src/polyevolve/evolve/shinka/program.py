@@ -26,26 +26,26 @@ TOOLBOX_DOC = """Available nodes (each is a factory returning a callable state -
 apply as `state = node(...)(state)`). Compose them freely inside the EVOLVE-BLOCK:
 
   select_evidence(k=8, mode="heuristic"|"embedding")   rank leakage-safe evidence -> state.selected
-  research(model_id=mid, anthropic_api_key=key, max_rounds=2)   agentic gather (<= as_of)
+  research(model_id=mid, max_rounds=2)                 agentic gather (<= as_of)
   reweight_polls(drop_leans=("gov",))                  drop captured pollsters from evidence
-  validate_evidence(model_id=mid, anthropic_api_key=key)        drop off-topic items, score quality
-  extract_features(model_id=mid, anthropic_api_key=key)         derive decisive quantities
-  decompose(model_id=mid, anthropic_api_key=key)               split into sub-questions
-  call_model(system_prompt=..., model_id=mid, anthropic_api_key=key)   direct P(YES)
-  ensemble(k=3, model_id=mid, anthropic_api_key=key, aggregate="trimmed_mean", system_prompt=...)
-  debate_critique(model_id=mid, anthropic_api_key=key)         propose -> refute -> revise
-  latent_threshold(model_id=mid, anthropic_api_key=key)        coherent margin~N(mu,sig) -> CDF
-  latent_to_prob(model_id=mid, anthropic_api_key=key)          latent quantity -> p_yes via CDF
+  validate_evidence(model_id=mid)                      drop off-topic items, score quality
+  extract_features(model_id=mid)                       derive decisive quantities
+  decompose(model_id=mid)                              split into sub-questions
+  call_model(system_prompt=..., model_id=mid)          direct P(YES)
+  ensemble(k=3, model_id=mid, aggregate="trimmed_mean", system_prompt=...)
+  debate_critique(model_id=mid)                        propose -> refute -> revise
+  latent_threshold(model_id=mid)                       coherent margin~N(mu,sig) -> CDF
+  latent_to_prob(model_id=mid)                         latent quantity -> p_yes via CDF
   calibrate(coeff=1.3, method="temperature")           soften overconfident p_yes (coeff>1 -> 0.5)
   abstain(min_conf=0.45, min_div=0.06)                 size=0 unless confident AND diverges from price
   size_by_edge(kelly_frac=0.25)                        signed fractional-Kelly stake vs market price
 
 Rules: an estimate node (call_model/ensemble/latent_*/debate_critique) MUST run before
 calibrate/abstain/size, and end with size_by_edge so the forecast carries a stake. You are
-rewriting the top-level `predict(q, pool, mid, key) -> Forecast` function: build a
+rewriting the top-level `predict(q, pool, mid) -> Forecast` function: build a
 ReasoningState, pipe it through nodes, and return `state.to_forecast()`. You MAY add or refactor
-helper functions in the block and call them from predict. `mid`/`key` are predict's args and
-`SYSTEM_PROMPT` is a module global - all already in scope. Do not add imports or I/O."""
+helper functions in the block and call them from predict. `mid` is predict's arg and
+`SYSTEM_PROMPT` is a module global - both already in scope. Do not add imports or I/O."""
 
 
 _SCAFFOLD = '''"""A PolyEvolve forecasting genome - the predict() function is evolved by ShinkaEvolve.
@@ -75,12 +75,11 @@ from polyevolve.reason.nodes import (
 from polyevolve.reason.research import research
 
 MODEL_ID = {model_id!r}
-API_KEY = {api_key!r}
 SYSTEM_PROMPT = {system_prompt!r}
 
 
 # EVOLVE-BLOCK-START
-def predict(q: Question, pool: EvidencePool, mid: str, key: str | None) -> Forecast:
+def predict(q: Question, pool: EvidencePool, mid: str) -> Forecast:
     """The evolvable genome: compose nodes into the state, then read off the Forecast.
 
     Free to restructure entirely and to add helper functions in this block. Keep the
@@ -94,7 +93,7 @@ def predict(q: Question, pool: EvidencePool, mid: str, key: str | None) -> Forec
 
 def forecast(q: Question, pool: EvidencePool) -> Forecast:
     """Fixed entrypoint (the Genome the platform loads). Delegates to the evolved predict()."""
-    return predict(q, pool, MODEL_ID, API_KEY)
+    return predict(q, pool, MODEL_ID)
 '''
 
 
@@ -104,23 +103,20 @@ def _seed_block(k: SeedKnobs) -> str:
     if k.use_pollster_reweight:
         lines.append("state = reweight_polls()(state)")
     if k.use_validate:
-        lines.append("state = validate_evidence(model_id=mid, anthropic_api_key=key)(state)")
+        lines.append("state = validate_evidence(model_id=mid)(state)")
     if k.use_features:
-        lines.append("state = extract_features(model_id=mid, anthropic_api_key=key)(state)")
+        lines.append("state = extract_features(model_id=mid)(state)")
     if k.use_decompose:
-        lines.append("state = decompose(model_id=mid, anthropic_api_key=key)(state)")
+        lines.append("state = decompose(model_id=mid)(state)")
     if k.use_latent:
-        lines.append("state = latent_threshold(model_id=mid, anthropic_api_key=key)(state)")
+        lines.append("state = latent_threshold(model_id=mid)(state)")
     elif k.use_ensemble:
         lines.append(
-            f"state = ensemble(k={k.ensemble_k}, model_id=mid, anthropic_api_key=key, "
+            f"state = ensemble(k={k.ensemble_k}, model_id=mid, "
             'aggregate="trimmed_mean", system_prompt=SYSTEM_PROMPT)(state)'
         )
     else:
-        lines.append(
-            "state = call_model(system_prompt=SYSTEM_PROMPT, model_id=mid, "
-            "anthropic_api_key=key)(state)"
-        )
+        lines.append("state = call_model(system_prompt=SYSTEM_PROMPT, model_id=mid)(state)")
     lines.append(f'state = calibrate(coeff={k.calibrate_coeff}, method="temperature")(state)')
     lines.append(
         f"state = abstain(min_conf={k.abstain_min_conf}, min_div={k.abstain_min_div})(state)"
@@ -134,7 +130,6 @@ def seed_program(knobs: SeedKnobs) -> str:
     return _SCAFFOLD.format(
         toolbox=TOOLBOX_DOC,
         model_id=knobs.model_id,
-        api_key=knobs.anthropic_api_key,
         system_prompt=knobs.system_prompt,
         block=_seed_block(knobs),
     )

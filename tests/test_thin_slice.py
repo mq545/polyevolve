@@ -83,7 +83,7 @@ class MockModel:
         return {"input": payloads[name], "usage": {}}
 
 
-def _mock_build_model(*, model_id: str, anthropic_api_key: str | None = None) -> MockModel:
+def _mock_build_model(*, model_id: str, recorder: object | None = None) -> MockModel:
     return MockModel()
 
 

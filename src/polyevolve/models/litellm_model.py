@@ -1,8 +1,6 @@
-"""LiteLLM-based model wrapper for multi-provider support (Ollama, vLLM, OpenAI).
+"""LiteLLM-based model wrapper for multi-provider support (Ollama, vLLM, OpenAI, Anthropic).
 
-Use this for local/dev inference. For Anthropic in production, prefer
-AnthropicModel directly - it preserves prompt caching and adaptive thinking
-which are silently dropped on this path.
+This is the single model client `build_model` returns for every provider.
 
 Structured output strategy - JSON mode, not forced tool_use. Local models served
 through Ollama vary wildly in their support for forced `tool_choice`: notably

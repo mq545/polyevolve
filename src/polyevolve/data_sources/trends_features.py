@@ -72,7 +72,6 @@ def event_search_shares(
     event: str = "",
     geo: str | None = None,
     model_id: str = "ollama/qwen3:30b-a3b-instruct-2507-q4_K_M",
-    anthropic_api_key: str | None = None,
 ) -> dict[int, float]:
     """Each market's normalized search share across its event field, by input index.
 
@@ -83,9 +82,7 @@ def event_search_shares(
     """
     qs = list(questions)
     g = geo_for(event) if geo is None else geo
-    kw = resolve_keywords(
-        qs, event=event, geo=g, model_id=model_id, anthropic_api_key=anthropic_api_key
-    )  # {idx: term}
+    kw = resolve_keywords(qs, event=event, geo=g, model_id=model_id)  # {idx: term}
     if len(kw) < 2:
         return {}
     terms = list({t for t in kw.values()})

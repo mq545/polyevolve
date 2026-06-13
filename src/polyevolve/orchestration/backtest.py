@@ -75,7 +75,7 @@ def run_backtest(
 ) -> str:
     polymarket = PolymarketSource()
     registry = DataRegistry()
-    model = build_model(model_id=cfg.default_model, anthropic_api_key=cfg.anthropic_api_key)
+    model = build_model(model_id=cfg.default_model)
     agent = ForeignPoliticsAgent(model)
 
     rid = run_id or _run_id(now, model.name)

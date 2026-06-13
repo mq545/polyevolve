@@ -97,7 +97,6 @@ def resolve_keywords(
     event: str = "",
     geo: str = "",
     model_id: str = "ollama/qwen3:30b-a3b-instruct-2507-q4_K_M",
-    anthropic_api_key: str | None = None,
 ) -> dict[int, str]:
     """Map each question (by its index) to the search term locals use. Disk-cached.
 
@@ -117,7 +116,7 @@ def resolve_keywords(
         f"MARKETS:\n{listing}\n\n"
         "Return one search query per market via submit_terms."
     )
-    model = build_model(model_id=model_id, anthropic_api_key=anthropic_api_key)
+    model = build_model(model_id=model_id)
     try:
         res = model.complete_with_tool(
             cached_system_blocks=[_SYS],

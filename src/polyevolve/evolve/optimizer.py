@@ -186,7 +186,7 @@ def _mutate_prompt_via_llm(
     scripts/predict_margin.py.
     """
     try:
-        model = build_model(model_id=knobs.model_id, anthropic_api_key=knobs.anthropic_api_key)
+        model = build_model(model_id=knobs.model_id)
         res = model.complete_with_tool(
             cached_system_blocks=[_PROMPT_MUTATOR_SYS],
             user_content=f"CURRENT PROMPT:\n{knobs.system_prompt}\n\nPropose an improved variant.",

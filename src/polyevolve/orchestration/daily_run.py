@@ -30,7 +30,6 @@ def main() -> int:
     recorder = LLMCallRecorder(cfg.db_url, langfuse=get_langfuse())
     model = build_model(
         model_id=cfg.default_model,
-        anthropic_api_key=cfg.anthropic_api_key,
         recorder=recorder,
     )
     agent = ForeignPoliticsAgent(model)

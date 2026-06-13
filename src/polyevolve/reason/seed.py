@@ -26,7 +26,7 @@ Everything flows through `ReasoningState`; the final `Forecast` is read off beli
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from polyevolve.reason.dsl import EvidencePool, Forecast, Genome, Question, ReasoningState
 from polyevolve.reason.nodes import (
@@ -117,8 +117,6 @@ class SeedKnobs:
     select_k: int = 8
     # model id every model-using node is built with.
     model_id: str = DEFAULT_MODEL_ID
-    # optional API key for hosted (e.g. anthropic) models; None for local/ollama.
-    anthropic_api_key: str | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if self.calibrate_coeff == 0:
@@ -151,15 +149,12 @@ def forecast(
     """
     state = ReasoningState(question=q, pool=pool)
     mid = knobs.model_id
-    key = knobs.anthropic_api_key
 
     # EVOLVE-BLOCK-START
     # 0. (optional) AGENTIC GATHER: the genome fetches its own leakage-safe evidence
     # (plan -> execute <= as_of -> refine) instead of consuming only the pre-fixed pool.
     if knobs.use_research:
-        state = research(model_id=mid, anthropic_api_key=key, max_rounds=knobs.research_rounds)(
-            state
-        )
+        state = research(model_id=mid, max_rounds=knobs.research_rounds)(state)
 
     # 1. retrieve: leakage-safe, ranked evidence into state.selected.
     state = select_evidence(k=knobs.select_k, mode="heuristic")(state)
@@ -173,32 +168,29 @@ def forecast(
     # score data_quality, so the forecaster anchors to the base rate instead of hallucinating
     # from garbage (e.g. non-numeric poll captions).
     if knobs.use_validate:
-        state = validate_evidence(model_id=mid, anthropic_api_key=key)(state)
+        state = validate_evidence(model_id=mid)(state)
 
     # 1c. (optional) CONSTRUCT FEATURES: have the model derive the decisive quantities
     # (poll lead/trend, pollster-reweighted average, days-out, swing) before estimating.
     if knobs.use_features:
-        state = extract_features(model_id=mid, anthropic_api_key=key)(state)
+        state = extract_features(model_id=mid)(state)
 
     # 2. (optional) decompose the question to widen reasoning before estimating.
     if knobs.use_decompose:
-        state = decompose(model_id=mid, anthropic_api_key=key)(state)
+        state = decompose(model_id=mid)(state)
 
     # 3. estimate P(YES): a latent margin -> CDF (coherent), an ensemble, or a direct P(YES).
     if knobs.use_latent:
-        state = latent_threshold(model_id=mid, anthropic_api_key=key)(state)
+        state = latent_threshold(model_id=mid)(state)
     elif knobs.use_ensemble:
         state = ensemble(
             k=knobs.ensemble_k,
             model_id=mid,
-            anthropic_api_key=key,
             aggregate="trimmed_mean",
             system_prompt=knobs.system_prompt,
         )(state)
     else:
-        state = call_model(system_prompt=knobs.system_prompt, model_id=mid, anthropic_api_key=key)(
-            state
-        )
+        state = call_model(system_prompt=knobs.system_prompt, model_id=mid)(state)
 
     # 4. calibrate: temperature-soften the (often overconfident) raw probability.
     state = calibrate(coeff=knobs.calibrate_coeff, method="temperature")(state)

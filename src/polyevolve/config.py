@@ -15,7 +15,6 @@ USER_AGENT = f"polyevolve-forecaster/0.1 ({CONTACT})"
 
 @dataclass(frozen=True)
 class Config:
-    anthropic_api_key: str | None
     db_url: str
     default_model: str
     kalshi_api_key: str | None
@@ -29,7 +28,6 @@ class Config:
         kalshi_pk = os.environ.get("KALSHI_PRIVATE_KEY_PATH")
 
         return cls(
-            anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY") or None,
             db_url=os.environ.get(
                 "DB_URL",
                 "postgresql://superpod:superpod@localhost:5432/superpod",

@@ -168,7 +168,6 @@ _PLAN_TOOL: dict[str, Any] = {
 def research(
     model_id: str = "ollama/qwen3:30b-a3b-instruct-2507-q4_K_M",
     *,
-    anthropic_api_key: str | None = None,
     registry: ToolRegistry | None = None,
     max_rounds: int = 2,
     max_requests_per_round: int = 4,
@@ -190,7 +189,7 @@ def research(
 
     def _node(state: ReasoningState) -> ReasoningState:
         reg = registry if registry is not None else default_registry()
-        model = build_model(model_id=model_id, anthropic_api_key=anthropic_api_key)
+        model = build_model(model_id=model_id)
         as_of = state.question.as_of
         gathered: dict[str, EvidenceItem] = {}
         log: list[str] = []

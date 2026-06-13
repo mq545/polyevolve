@@ -163,7 +163,7 @@ class _MockModel:
         return {"input": {"system_prompt": "MUTATED: stay near base rates."}, "usage": {}}
 
 
-def _mock_build_model(*, model_id: str, anthropic_api_key: str | None = None) -> _MockModel:
+def _mock_build_model(*, model_id: str, recorder: object | None = None) -> _MockModel:
     return _MockModel()
 
 
