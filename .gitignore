@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# uv
+.uv/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# ShinkaEvolve run outputs (results/, results_fp_recent/, results_fp_v1/, ...)
+evolve_task/results*/
+
+# Local data dumps
+data/
+scripts/.cache/
+*.csv
+!tests/fixtures/*.csv
+*.db
+*.sqlite
+
+# Postgres data (when running without docker volume)
+pgdata/
+
+# --- Private market-findings / edge research (kept local, never pushed) ---
+findings/
+src/polyevolve/bench/maker.py
+src/polyevolve/bench/esports.py
+
+# Leftover private caches + parked edge-research (never public)
+scripts/
+legacy/

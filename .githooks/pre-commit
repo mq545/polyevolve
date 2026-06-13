@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Pre-commit gate: block the commit unless ruff + mypy + pytest all pass.
+# Install once with:  git config core.hooksPath .githooks
+#
+# Bypass in a genuine emergency with:  git commit --no-verify
+set -uo pipefail
+
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+UV="${UV:-$HOME/.local/bin/uv}"
+command -v "$UV" >/dev/null 2>&1 || UV=uv
+
+fail() { echo "❌ pre-commit: $1 failed - commit blocked (use --no-verify to override)"; exit 1; }
+
+echo "pre-commit: ruff check…"
+"$UV" run ruff check . >/tmp/precommit_ruff.log 2>&1 || { tail -20 /tmp/precommit_ruff.log; fail "ruff"; }
+
+echo "pre-commit: ruff format check…"
+"$UV" run ruff format --check . >/tmp/precommit_fmt.log 2>&1 || { tail -20 /tmp/precommit_fmt.log; fail "ruff format"; }
+
+echo "pre-commit: mypy…"
+"$UV" run mypy src >/tmp/precommit_mypy.log 2>&1 || { tail -20 /tmp/precommit_mypy.log; fail "mypy"; }
+
+echo "pre-commit: pytest…"
+"$UV" run pytest -q >/tmp/precommit_pytest.log 2>&1 || { tail -20 /tmp/precommit_pytest.log; fail "pytest"; }
+
+echo "✅ pre-commit: all checks passed"

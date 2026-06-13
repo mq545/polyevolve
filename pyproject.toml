@@ -1,0 +1,82 @@
+[project]
+name = "polyevolve"
+version = "0.0.1"
+description = "Extensible platform for testing forecasting & trading experiments on prediction markets (Polymarket, Kalshi)."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "httpx>=0.27",
+    "pydantic>=2.7",
+    "psycopg[binary]>=3.2",
+    "anthropic>=0.40",
+    "python-dotenv>=1.0",
+    "apscheduler>=3.10",
+    "litellm>=1.86.2",
+    "google-cloud-bigquery>=3.41.0",
+    "trafilatura>=2.0.0",
+    "scikit-learn>=1.9.0",
+    "scipy>=1.13",
+    "numpy>=2.0",
+    "pytrends>=4.9.2",
+]
+
+[project.optional-dependencies]
+# Semantic-embedding evidence ranking in select_evidence (LLM-free, offline). Heavy
+# (torch); behind a lazy import with graceful heuristic fallback when not installed.
+embed = ["sentence-transformers>=2.7"]
+# DSPy-based prompt/program optimization for the forecaster system prompt (an
+# alternative to the built-in LLM prompt-mutation operator). Optional; not imported
+# unless explicitly wired.
+tune = ["dspy>=2.5"]
+# Conformal prediction (MAPIE) for distribution-free calibration intervals on top of
+# the calibrate node. Optional; lazy-imported with graceful fallback when absent.
+conformal = ["mapie>=0.9"]
+
+[project.scripts]
+polyevolve = "polyevolve.cli:main"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.7",
+    "mypy>=1.13",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "matplotlib>=3.10.9",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/polyevolve"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+# ShinkaEvolve writes mutated genome programs under evolve_task/results*/ - these
+# are generated artifacts, not our source, and must never be linted or committed.
+# legacy/ holds parked one-off scripts kept for reference only (never imported,
+# never run in CI); they predate the platform's lint rules, so exclude them.
+extend-exclude = ["evolve_task/results*", "evolve_task/CHAMPION_*.py", "legacy"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+# scripts/ are one-off RESEARCH artifacts (the experiment log behind the platform),
+# not maintained library code. They lean on quick idioms - long embedded prompt/data
+# strings (E501), json.load(open(...)) (SIM115), zip() without strict (B905) - that we
+# keep STRICT in src/ and tests/. Relaxing them here keeps the research log readable as
+# written without rewriting throwaway scripts. The library core stays fully linted.
+[tool.ruff.lint.per-file-ignores]
+"scripts/**" = ["E501", "SIM115", "B905", "UP031", "E702"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
