@@ -18,10 +18,10 @@ import pytest
 
 from polyevolve.evolve.fitness import WORST_FITNESS, fitness, make_calibration_fitness
 from polyevolve.evolve.optimizer import (
-    ShinkaEvolveOptimizer,
     knob_complexity,
     run_evolution,
 )
+from polyevolve.evolve.shinka import seed_program, validate_program
 from polyevolve.reason.dsl import Forecast, Genome, Question
 from polyevolve.reason.seed import SeedKnobs
 
@@ -206,8 +206,26 @@ def test_fitness_worst_on_empty_split() -> None:
 
 
 # --------------------------------------------------------------------------------------
-# ShinkaEvolve stub is import-guarded and raises clearly.
+# ShinkaEvolve full-program adapter: the program format round-trips and validates.
 # --------------------------------------------------------------------------------------
-def test_shinka_stub_raises_when_not_installed() -> None:
-    with pytest.raises(NotImplementedError):
-        ShinkaEvolveOptimizer()
+def test_seed_program_renders_and_loads(tmp_path: Any) -> None:
+    src = seed_program(SeedKnobs(use_ensemble=True))
+    assert "EVOLVE-BLOCK-START" in src and "EVOLVE-BLOCK-END" in src
+    assert "def forecast(" in src and "size_by_edge" in src
+    p = tmp_path / "initial.py"
+    p.write_text(src)
+    ok, err = validate_program(p)
+    assert ok, err
+
+
+def test_validate_program_rejects_syntax_and_missing_markers(tmp_path: Any) -> None:
+    src = seed_program(SeedKnobs())
+    bad_syntax = tmp_path / "bad.py"
+    bad_syntax.write_text(src.replace("state = calibrate", "state = = calibrate"))
+    ok, err = validate_program(bad_syntax)
+    assert not ok and err is not None
+
+    no_markers = tmp_path / "nomarkers.py"
+    no_markers.write_text("def forecast(q, pool):\n    return None\n")
+    ok2, err2 = validate_program(no_markers)
+    assert not ok2 and err2 is not None

@@ -224,21 +224,36 @@ def cmd_evolve(cfg: Config, args: argparse.Namespace) -> None:
     metric = "-Brier (higher=better)" if args.objective == "calibration" else "net-of-spread ROI"
     knobs = pe.SeedKnobs()
     src = args.snapshot_set or args.path or args.source
+    shinka = args.optimizer == "shinka"
+    search = (
+        f"search     shinka full-program  -  mutator {args.mutator}"
+        if shinka
+        else "search     builtin knobs  -  prompt-mutation: on"
+    )
+    budget = (
+        f"budget     {args.generations} generations x {args.num_islands} islands"
+        if shinka
+        else f"budget     {args.generations} generations x pop {args.pop}"
+    )
     print()
     print(
         panel(
             [
                 f"model      {knobs.model_id}",
                 f"dataset    {src}  -  {len(train)} train / {len(val)} holdout",
-                f"objective  {args.objective}  -  prompt-mutation: on",
-                f"budget     {args.generations} generations x pop {args.pop}",
+                f"objective  {args.objective}",
+                search,
+                budget,
             ],
             title="polyevolve evolve",
         )
     )
 
-    print(f"\n  {'gen':>5}  {'train':>9}  {'holdout':>9}")
     hist_va: list[float] = []
+    if shinka:
+        print(color("\n  running ShinkaEvolve out-of-process (see the run log) ...", "dim"))
+    else:
+        print(f"\n  {'gen':>5}  {'train':>9}  {'holdout':>9}")
 
     def _progress(gen: int, gens: int, tr: float, va: float) -> None:
         hist_va.append(va)
@@ -252,7 +267,11 @@ def cmd_evolve(cfg: Config, args: argparse.Namespace) -> None:
         val_pools=vpools,
         generations=args.generations,
         pop=args.pop,
-        progress=_progress,
+        progress=None if shinka else _progress,
+        optimizer=args.optimizer,
+        mutator=args.mutator,
+        num_islands=args.num_islands,
+        archive_size=args.archive_size,
     )
 
     # crowd benchmark on the SAME splits (-Brier for calibration; 0 break-even for return).
@@ -276,7 +295,8 @@ def cmd_evolve(cfg: Config, args: argparse.Namespace) -> None:
     )
     power = "" if len(val) >= 40 else color(f"  (n={len(val)} - under rubric power floor)", "dim")
 
-    print(f"\n  climb  {spark(hist_va)}")
+    if hist_va:
+        print(f"\n  climb  {spark(hist_va)}")
     print(
         panel(
             [
@@ -291,16 +311,21 @@ def cmd_evolve(cfg: Config, args: argparse.Namespace) -> None:
         )
     )
 
-    changed = [
-        (k, v)
-        for k, v in vars(res.knobs).items()
-        if k not in ("system_prompt", "anthropic_api_key", "model_id")
-        and v != getattr(knobs, k, None)
-    ]
-    if changed:
-        print("  evolved  " + "  ".join(f"{k}: {getattr(knobs, k)}->{v}" for k, v in changed))
+    champion_path = getattr(res.raw, "champion_path", None)
+    if champion_path:
+        n_lines = len(getattr(res.raw, "champion_source", "").splitlines())
+        print(f"  evolved  full program ({n_lines} lines) -> {champion_path}")
     else:
-        print("  evolved  (seed unchanged - it was already the champion)")
+        changed = [
+            (k, v)
+            for k, v in vars(res.knobs).items()
+            if k not in ("system_prompt", "anthropic_api_key", "model_id")
+            and v != getattr(knobs, k, None)
+        ]
+        if changed:
+            print("  evolved  " + "  ".join(f"{k}: {getattr(knobs, k)}->{v}" for k, v in changed))
+        else:
+            print("  evolved  (seed unchanged - it was already the champion)")
 
 
 def cmd_traces(cfg: Config, args: argparse.Namespace) -> None:
@@ -606,6 +631,19 @@ def main() -> int:
     p.add_argument("--limit", type=int, default=200)
     p.add_argument("--holdout", type=float, default=0.25, help="validation fraction (held out)")
     p.add_argument("--gather", action="store_true", help="gather leakage-safe evidence pools")
+    p.add_argument(
+        "--optimizer",
+        default="builtin",
+        choices=["builtin", "shinka"],
+        help="builtin = knob-level search; shinka = full-program EVOLVE-BLOCK rewrite (Sakana)",
+    )
+    p.add_argument(
+        "--mutator",
+        default="local/qwen2.5:14b@http://localhost:11434/v1",
+        help="ShinkaEvolve mutation LLM (default: local Ollama, free)",
+    )
+    p.add_argument("--num-islands", type=int, default=2, help="shinka: island-model islands")
+    p.add_argument("--archive-size", type=int, default=20, help="shinka: archive size per island")
     p.set_defaults(func=cmd_evolve)
 
     p = sub.add_parser("evaluate", help="evaluate default genome on a snapshot set")

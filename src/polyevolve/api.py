@@ -160,6 +160,10 @@ def evolve(
     complexity_lambda: float = 0.0,
     seed_value: int = 0,
     progress: Callable[[int, int, float, float], None] | None = None,
+    optimizer: str = "builtin",
+    mutator: str = "local/qwen2.5:14b@http://localhost:11434/v1",
+    num_islands: int = 2,
+    archive_size: int = 20,
 ) -> EvolveResult:
     """Evolve a genome to maximize ``combined_score`` for the chosen objective.
 
@@ -176,6 +180,38 @@ def evolve(
         if val_pools is not None
         else (train_pools if val_questions is None else None)
     )
+
+    # Full-program search: delegate the EVOLVE-BLOCK rewrite to ShinkaEvolve (out-of-process,
+    # separate venv). Same EvolveResult shape; the champion is evolved CODE, loaded back here.
+    if optimizer == "shinka":
+        from polyevolve.evolve.shinka import ShinkaEvolveOptimizer, load_program_genome
+
+        opt = ShinkaEvolveOptimizer(
+            objective=objective,
+            generations=generations,
+            mutator=mutator,
+            num_islands=num_islands,
+            archive_size=archive_size,
+        )
+        res = opt.optimize(
+            start or SeedKnobs(), train_qs, val_qs, train_pools=train_pools, val_pools=vpools
+        )
+        champ = (
+            load_program_genome(res.champion_path)
+            if res.champion_path
+            else make_seed_genome(res.best_knobs)
+        )
+        return EvolveResult(
+            genome=champ,
+            knobs=res.best_knobs,
+            train_fitness=res.best_train_fitness,
+            val_fitness=res.best_val_fitness,
+            seed_train_fitness=res.seed_train_fitness,
+            seed_val_fitness=res.seed_val_fitness,
+            raw=res,
+        )
+    if optimizer != "builtin":
+        raise ValueError(f"unknown optimizer {optimizer!r} (use 'builtin' or 'shinka')")
 
     # Pools-aware factory: the optimizer builds the SAME objective for each split but
     # bound to that split's frozen pools, so val never scores against train evidence.

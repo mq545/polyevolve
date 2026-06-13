@@ -4,7 +4,7 @@ Public surface:
   - fitness / make_calibration_fitness / FitnessFn : the (pluggable) scalar to maximize
   - Optimizer / Result / run_evolution             : the built-in evolutionary search
   - EvolutionOptimizer                             : OO wrapper over run_evolution
-  - ShinkaEvolveOptimizer                          : import-guarded STUB (composition search)
+  - ShinkaEvolveOptimizer                          : full-program search (Sakana ShinkaEvolve)
 
 Calibration-first today (`-brier`); a return-based fitness swaps in behind `FitnessFn`.
 """
@@ -23,10 +23,10 @@ from .optimizer import (
     Individual,
     Optimizer,
     Result,
-    ShinkaEvolveOptimizer,
     knob_complexity,
     run_evolution,
 )
+from .shinka import ShinkaEvolveOptimizer
 
 __all__ = [
     "fitness",

@@ -46,6 +46,13 @@ uv run polyevolve evolve --snapshot-set demo --objective return
 
 `polyevolve evolve` runs the strategy genome with a local LLM (Ollama qwen3 by default - see
 [Model routing](#model-routing)) and prints the evolved champion's knobs and its holdout lift.
+
+Two search modes: the built-in loop mutates the genome's **knobs** (prompt, ensembling,
+calibration, sizing). Add `--optimizer shinka` to instead let Sakana's
+[ShinkaEvolve](https://github.com/SakanaAI/ShinkaEvolve) rewrite the **whole pipeline** (which
+nodes, in what order) - full-program evolution. It runs in its own venv; the adapter shells
+out to it (`python -m venv ~/.venvs/shinka && ~/.venvs/shinka/bin/pip install shinka-evolve`).
+
 Prefer code? The same loop is **six composable verbs**:
 
 ```python
@@ -172,7 +179,7 @@ fc    = pe.forecast(best.genome, qs[0], pools[0])
 | `data_sources/` | the raw fetchers (GDELT, polls, trends, Manifold, World Bank, …) that connectors wrap |
 | `reason/` | the genome: typed nodes, the seed scaffold, joint inference |
 | `bench/` | scoring, calibration, the net-of-spread return sim (`sim.py`), datasets |
-| `evolve/` | the knob-space optimizer behind `pe.evolve` |
+| `evolve/` | the built-in knob optimizer + `evolve/shinka/` (full-program search via Sakana ShinkaEvolve) |
 | `harness/` | `run_experiment` → the 8-check `rubric` |
 | `ledger/` | the forward paper-bet ledger (the confirmation gate) |
 | `models/` | `build_model` (Anthropic direct / LiteLLM) + `coerce_rows` |

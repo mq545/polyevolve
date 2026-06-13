@@ -17,8 +17,9 @@ split (the generalization guard) - we never pick the genome that merely memorise
 A complexity-penalty hook (`complexity_lambda` x a knob-complexity proxy) can be switched
 on to break ties toward simpler genomes.
 
-The whole loop runs WITHOUT ShinkaEvolve. `ShinkaEvolveOptimizer` is an import-guarded STUB
-behind the same `Optimizer` interface for the eventual swap to composition-level search.
+The whole loop runs WITHOUT ShinkaEvolve. For full-program (composition-level) search,
+`polyevolve.evolve.shinka.ShinkaEvolveOptimizer` implements the same `Optimizer` interface
+by delegating to Sakana's ShinkaEvolve in a separate venv.
 """
 
 from __future__ import annotations
@@ -40,7 +41,6 @@ __all__ = [
     "Individual",
     "run_evolution",
     "EvolutionOptimizer",
-    "ShinkaEvolveOptimizer",
     "knob_complexity",
 ]
 
@@ -71,6 +71,10 @@ class Result:
     seed_train_fitness: float
     seed_val_fitness: float
     history: list[Individual] = field(default_factory=list)
+    # full-program optimizers (ShinkaEvolve) evolve CODE, not knobs: the champion's evolved
+    # source and its path. None for the knob-level built-in loop.
+    champion_source: str | None = None
+    champion_path: str | None = None
 
     @property
     def improved(self) -> bool:
@@ -332,37 +336,5 @@ class EvolutionOptimizer:
         return run_evolution(seed_knobs, train_qs, val_qs, **self._kwargs)
 
 
-# --------------------------------------------------------------------------------------
-# ShinkaEvolve - STUB behind the same interface (composition-level search). TODO.
-# --------------------------------------------------------------------------------------
-
-
-class ShinkaEvolveOptimizer:
-    """TODO (NOT wired): delegate composition-level search to Sakana's ShinkaEvolve.
-
-    Unlike `run_evolution` (which only mutates KNOBS), ShinkaEvolve rewrites the EVOLVE-BLOCK
-    body of `polyevolve.reason.seed.forecast` (which nodes, in what order). It is import-guarded
-    so importing this module never requires the dependency; constructing it without
-    ShinkaEvolve installed raises a clear error. See reference_shinkaevolve memory for the
-    verified interface and build-order prereqs (harness first).
-    """
-
-    def __init__(self, **config: Any) -> None:
-        try:
-            import shinka  # noqa: F401, PLC0415
-        except Exception as exc:  # noqa: BLE001
-            raise NotImplementedError(
-                "ShinkaEvolveOptimizer is a stub: ShinkaEvolve is not installed/wired. "
-                "Use run_evolution (knob-level search) for now; see reference_shinkaevolve."
-            ) from exc
-        self._config = config
-
-    def optimize(
-        self,
-        seed_knobs: SeedKnobs,
-        train_qs: Sequence[Question],
-        val_qs: Sequence[Question],
-    ) -> Result:  # pragma: no cover - stub
-        raise NotImplementedError(
-            "ShinkaEvolveOptimizer.optimize is not implemented yet (composition-level search)."
-        )
+# ShinkaEvolve full-program optimizer lives in `polyevolve.evolve.shinka` (it shells out to
+# a separate venv, so it is kept out of this module to avoid the import surface).
