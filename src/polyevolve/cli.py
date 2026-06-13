@@ -177,15 +177,31 @@ def cmd_evolve(cfg: Config, args: argparse.Namespace) -> None:
     pools = pe.gather(train) if args.gather else None
     vpools = pe.gather(val) if args.gather else None
 
+    from polyevolve.bench.scoring import brier as _brier
+    from polyevolve.cli_ui import color, panel, spark
+
     metric = "-Brier (higher=better)" if args.objective == "calibration" else "net-of-spread ROI"
+    knobs = pe.SeedKnobs()
+    src = args.snapshot_set or args.path or args.source
+    print()
     print(
-        f"\nEvolving on {len(train)} train / {len(val)} holdout markets  "
-        f"(objective={args.objective}, {args.generations} gens x pop {args.pop})\n"
+        panel(
+            [
+                f"model      {knobs.model_id}",
+                f"dataset    {src}  -  {len(train)} train / {len(val)} holdout",
+                f"objective  {args.objective}  -  prompt-mutation: on",
+                f"budget     {args.generations} generations x pop {args.pop}",
+            ],
+            title="polyevolve evolve",
+        )
     )
-    print(f"  {'gen':>5}  {'best train':>11}  {'best holdout':>13}")
+
+    print(f"\n  {'gen':>5}  {'train':>9}  {'holdout':>9}")
+    hist_va: list[float] = []
 
     def _progress(gen: int, gens: int, tr: float, va: float) -> None:
-        print(f"  {f'{gen}/{gens}':>5}  {tr:>+11.4f}  {va:>+13.4f}", flush=True)
+        hist_va.append(va)
+        print(f"  {f'{gen}/{gens}':>5}  {tr:>+9.4f}  {va:>+9.4f}", flush=True)
 
     res = pe.evolve(
         train,
@@ -198,28 +214,52 @@ def cmd_evolve(cfg: Config, args: argparse.Namespace) -> None:
         progress=_progress,
     )
 
-    lift = res.val_fitness - res.seed_val_fitness
-    verdict = "IMPROVED" if res.improved else "no improvement over seed"
-    print(f"\n  {'=' * 50}")
-    print(f"  RESULT   [{metric}]")
-    print(f"  {'=' * 50}")
-    print(f"  seed      train {res.seed_train_fitness:+.4f}   holdout {res.seed_val_fitness:+.4f}")
-    print(f"  champion  train {res.train_fitness:+.4f}   holdout {res.val_fitness:+.4f}")
-    print(f"  holdout lift {lift:+.4f}   ->  {verdict}")
+    # crowd benchmark on the SAME splits (-Brier for calibration; 0 break-even for return).
+    def _crowd(xs: list[pe.Question]) -> float:
+        pairs = [
+            (float(q.market_price), bool(q.outcome))
+            for q in xs
+            if q.market_price is not None and q.outcome is not None
+        ]
+        if not pairs:
+            return float("nan")
+        return -_brier(pairs) if args.objective == "calibration" else 0.0
 
-    default = pe.SeedKnobs()
+    crowd_tr, crowd_va = _crowd(train), _crowd(val)
+    lift = res.val_fitness - res.seed_val_fitness
+    gap = res.val_fitness - crowd_va  # higher is better in both metrics
+    verdict = (
+        color(f"beats crowd by {gap:+.3f} on holdout", "green")
+        if gap > 0
+        else color(f"{abs(gap):.3f} behind crowd on holdout", "red")
+    )
+    power = "" if len(val) >= 40 else color(f"  (n={len(val)} - under rubric power floor)", "dim")
+
+    print(f"\n  climb  {spark(hist_va)}")
+    print(
+        panel(
+            [
+                f"{'':10}{'train':>9}  {'holdout':>9}",
+                f"crowd     {crowd_tr:>+9.3f}  {crowd_va:>+9.3f}   {color('<- benchmark', 'dim')}",
+                f"seed      {res.seed_train_fitness:>+9.3f}  {res.seed_val_fitness:>+9.3f}",
+                f"champion  {res.train_fitness:>+9.3f}  {res.val_fitness:>+9.3f}   "
+                f"{color(f'{lift:+.3f} vs seed', 'cyan')}",
+                f"verdict   {verdict}{power}",
+            ],
+            title=f"result  -  {metric}",
+        )
+    )
+
     changed = [
         (k, v)
         for k, v in vars(res.knobs).items()
         if k not in ("system_prompt", "anthropic_api_key", "model_id")
-        and v != getattr(default, k, None)
+        and v != getattr(knobs, k, None)
     ]
-    print("\n  what evolved (champion knobs that differ from the seed):")
     if changed:
-        for k, v in changed:
-            print(f"    {k} = {v}   (seed: {getattr(default, k)})")
+        print("  evolved  " + "  ".join(f"{k}: {getattr(knobs, k)}->{v}" for k, v in changed))
     else:
-        print("    (none - the seed was already the champion)")
+        print("  evolved  (seed unchanged - it was already the champion)")
 
 
 def cmd_traces(cfg: Config, args: argparse.Namespace) -> None:
