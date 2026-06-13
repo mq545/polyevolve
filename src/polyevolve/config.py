@@ -32,7 +32,9 @@ class Config:
                 "DB_URL",
                 "postgresql://superpod:superpod@localhost:5432/superpod",
             ),
-            default_model=os.environ.get("DEFAULT_MODEL", "claude-sonnet-4-6"),
+            default_model=os.environ.get(
+                "DEFAULT_MODEL", "ollama/qwen3:30b-a3b-instruct-2507-q4_K_M"
+            ),
             kalshi_api_key=os.environ.get("KALSHI_API_KEY") or None,
             kalshi_private_key_path=Path(kalshi_pk) if kalshi_pk else None,
             newsapi_key=os.environ.get("NEWSAPI_KEY") or None,
