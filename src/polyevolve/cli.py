@@ -95,6 +95,26 @@ def cmd_backtest(cfg: Config, args: argparse.Namespace) -> None:
     _query(cfg, "SELECT * FROM v_backtest_calibration WHERE run_id = %s", (run,))
 
 
+def cmd_snapshot(cfg: Config, args: argparse.Namespace) -> None:
+    """Build a frozen, resolved-market dataset (eval_snapshots) to evolve against."""
+    from datetime import UTC, datetime
+
+    from polyevolve.orchestration.snapshot import build_snapshot
+
+    build_snapshot(
+        cfg=cfg,
+        now=datetime.now(UTC),
+        snapshot_set=args.snapshot_set,
+        limit=args.limit,
+        lead_days=args.lead_days,
+        max_per_event=args.max_per_event,
+        domain=args.domain,
+        min_volume=args.min_volume,
+        gather_research=not args.no_research,
+        pages_per_tag=args.pages_per_tag,
+    )
+
+
 def cmd_snapshots(cfg: Config, args: argparse.Namespace) -> None:
     _query(
         cfg,
@@ -515,6 +535,32 @@ def main() -> int:
     p = sub.add_parser("backtest", help="backtest calibration (clean vs contaminated)")
     p.add_argument("--run", type=str, default=None, help="run_id (default: latest)")
     p.set_defaults(func=cmd_backtest)
+
+    p = sub.add_parser("snapshot", help="build a resolved-market dataset to evolve against")
+    p.add_argument("--set", dest="snapshot_set", required=True)
+    p.add_argument("--limit", type=int, default=100)
+    p.add_argument("--lead-days", type=int, default=7)
+    p.add_argument("--max-per-event", type=int, default=3)
+    p.add_argument(
+        "--domain",
+        default="foreign_politics",
+        help="ingestion domain: foreign_politics | sports | crypto | culture | all",
+    )
+    p.add_argument(
+        "--min-volume",
+        type=float,
+        default=0.0,
+        help="discovery liquidity gate: skip markets with volume below this ($)",
+    )
+    p.add_argument(
+        "--no-research",
+        action="store_true",
+        help="skip per-market research gathering (fast price+outcome dataset)",
+    )
+    p.add_argument(
+        "--pages-per-tag", type=int, default=10, help="event pages to pull per tag (raise for n)"
+    )
+    p.set_defaults(func=cmd_snapshot)
 
     p = sub.add_parser("snapshots", help="list frozen eval snapshot sets")
     p.set_defaults(func=cmd_snapshots)

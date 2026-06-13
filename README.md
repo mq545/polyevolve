@@ -5,7 +5,7 @@
   </picture>
 </p>
 
-<p align="center"><em>Evolve trading strategies for prediction markets - and measure the edge without fooling yourself.</em></p>
+<p align="center"><em>Evolve trading strategies for prediction markets - and measure the edge against the crowd.</em></p>
 
 ---
 
@@ -19,9 +19,10 @@ net-of-spread return. Three things make it worth your time:
 - **Plug in your own.** Markets, research connectors, and forecasters are all **plugins** -
   ~20 lines + one decorator and the registry auto-discovers it. Your strategy runs through the
   same harness as everything else.
-- **An honest harness.** Every result crosses the spread in an adversarial sim, clusters
+- **One scoring harness.** Every result crosses the spread in an adversarial sim, clusters
   correlated markets into events, and is graded **forward** in a paper-bet ledger - so a
-  backtest can't lie to you (see [ARCHITECTURE.md](ARCHITECTURE.md) for the 8-check rubric).
+  backtest number reflects tradeable conditions (see [ARCHITECTURE.md](ARCHITECTURE.md) for
+  the 8-check rubric).
 
 Venue-agnostic (Polymarket + Kalshi). Paper predictions only - no live trading.
 
@@ -173,7 +174,7 @@ fc    = pe.forecast(best.genome, qs[0], pools[0])
 | `bench/` | scoring, calibration, the net-of-spread return sim (`sim.py`), datasets |
 | `evolve/` | the knob-space optimizer behind `pe.evolve` |
 | `harness/` | `run_experiment` → the 8-check `rubric` |
-| `ledger/` | the forward paper-bet ledger (the un-foolable gate) |
+| `ledger/` | the forward paper-bet ledger (the confirmation gate) |
 | `models/` | `build_model` (Anthropic direct / LiteLLM) + `coerce_rows` |
 | `scout/`, `observability/`, `storage/` | efficiency map · LLM tracing · Postgres |
 
