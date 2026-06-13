@@ -238,3 +238,27 @@ def test_blinded_strips_future_fields_keeps_decision_time_data() -> None:
     assert b.outcome is None and b.crowd_prob is None
     assert b.market_price == 0.6  # known at decision time; needed for sizing
     assert q.outcome is True  # original is untouched (bench scores against it)
+
+
+def test_forecaster_never_sees_post_asof_evidence() -> None:
+    """Evidence dated after the as_of cutoff must not reach the forecaster's context.
+
+    select_evidence builds its candidate set from pool.on_or_before(as_of), so a post-cutoff
+    item is dropped before ranking - and therefore never rendered into the prompt. This is
+    the point-in-time guard that keeps a backtest from reading the future.
+    """
+    from polyevolve.reason.dsl import EvidenceItem, ReasoningState
+    from polyevolve.reason.nodes import _render_evidence, select_evidence
+
+    as_of = datetime(2025, 6, 1, tzinfo=UTC)
+    pool = EvidencePool(
+        items=[
+            EvidenceItem(text="PRE poll", source="polls", date=datetime(2025, 5, 20, tzinfo=UTC)),
+            EvidenceItem(text="POST leak", source="news", date=datetime(2025, 7, 15, tzinfo=UTC)),
+        ]
+    )
+    q = Question(id="x", text="who wins?", as_of=as_of, outcome=True)
+    state = select_evidence(k=10, mode="heuristic")(ReasoningState(question=q, pool=pool))
+    texts = [e.text for e in state.selected]
+    assert "PRE poll" in texts and "POST leak" not in texts
+    assert "POST leak" not in _render_evidence(state.selected)  # never enters the prompt
