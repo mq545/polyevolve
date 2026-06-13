@@ -20,7 +20,7 @@ the surface ShinkaEvolve/OpenEvolve adapters call into.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -159,6 +159,7 @@ def evolve(
     pop: int = 6,
     complexity_lambda: float = 0.0,
     seed_value: int = 0,
+    progress: Callable[[int, int, float, float], None] | None = None,
 ) -> EvolveResult:
     """Evolve a genome to maximize ``combined_score`` for the chosen objective.
 
@@ -192,6 +193,7 @@ def evolve(
         val_pools=vpools,
         complexity_lambda=complexity_lambda,
         seed=seed_value,
+        progress=progress,
     )
     return EvolveResult(
         genome=make_seed_genome(result.best_knobs),

@@ -231,6 +231,7 @@ def run_evolution(
     propose_prompt: bool = True,
     build_model: Any | None = None,
     seed: int = 0,
+    progress: Callable[[int, int, float, float], None] | None = None,
 ) -> Result:
     """Minimal (mu + lambda) evolution over `SeedKnobs`. No ShinkaEvolve required.
 
@@ -301,6 +302,9 @@ def run_evolution(
             key=lambda ind: selection_score(ind.knobs, ind.train_fitness),
             reverse=True,
         )[:pop]
+        if progress is not None:
+            best = population[0]
+            progress(gen, generations, best.train_fitness, best.val_fitness)
 
     champion = max(population, key=lambda ind: selection_score(ind.knobs, ind.train_fitness))
     return Result(

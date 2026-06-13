@@ -177,6 +177,16 @@ def cmd_evolve(cfg: Config, args: argparse.Namespace) -> None:
     pools = pe.gather(train) if args.gather else None
     vpools = pe.gather(val) if args.gather else None
 
+    metric = "-Brier (higher=better)" if args.objective == "calibration" else "net-of-spread ROI"
+    print(
+        f"\nEvolving on {len(train)} train / {len(val)} holdout markets  "
+        f"(objective={args.objective}, {args.generations} gens x pop {args.pop})\n"
+    )
+    print(f"  {'gen':>5}  {'best train':>11}  {'best holdout':>13}")
+
+    def _progress(gen: int, gens: int, tr: float, va: float) -> None:
+        print(f"  {f'{gen}/{gens}':>5}  {tr:>+11.4f}  {va:>+13.4f}", flush=True)
+
     res = pe.evolve(
         train,
         pools,
@@ -185,20 +195,31 @@ def cmd_evolve(cfg: Config, args: argparse.Namespace) -> None:
         val_pools=vpools,
         generations=args.generations,
         pop=args.pop,
+        progress=_progress,
     )
 
-    metric = "-Brier (higher=better)" if args.objective == "calibration" else "event ROI"
-    print(
-        f"\nEvolved on {len(train)} train / {len(val)} holdout markets "
-        f"({args.generations} gens x pop {args.pop}, objective={args.objective})\n"
-    )
+    lift = res.val_fitness - res.seed_val_fitness
+    verdict = "IMPROVED" if res.improved else "no improvement over seed"
+    print(f"\n  {'=' * 50}")
+    print(f"  RESULT   [{metric}]")
+    print(f"  {'=' * 50}")
     print(f"  seed      train {res.seed_train_fitness:+.4f}   holdout {res.seed_val_fitness:+.4f}")
-    print(f"  CHAMPION  train {res.train_fitness:+.4f}  holdout {res.val_fitness:+.4f}  [{metric}]")
-    print(f"  improved on holdout: {res.improved}")
-    print("\n  champion strategy (evolved knobs):")
-    for k, v in vars(res.knobs).items():
-        if k not in ("system_prompt", "anthropic_api_key", "model_id"):
-            print(f"    {k} = {v}")
+    print(f"  champion  train {res.train_fitness:+.4f}   holdout {res.val_fitness:+.4f}")
+    print(f"  holdout lift {lift:+.4f}   ->  {verdict}")
+
+    default = pe.SeedKnobs()
+    changed = [
+        (k, v)
+        for k, v in vars(res.knobs).items()
+        if k not in ("system_prompt", "anthropic_api_key", "model_id")
+        and v != getattr(default, k, None)
+    ]
+    print("\n  what evolved (champion knobs that differ from the seed):")
+    if changed:
+        for k, v in changed:
+            print(f"    {k} = {v}   (seed: {getattr(default, k)})")
+    else:
+        print("    (none - the seed was already the champion)")
 
 
 def cmd_traces(cfg: Config, args: argparse.Namespace) -> None:
