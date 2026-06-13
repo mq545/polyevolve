@@ -12,4 +12,4 @@ COPY src/ ./src/
 RUN uv sync --frozen --no-dev
 
 ENTRYPOINT ["uv", "run"]
-CMD ["python", "-m", "superpod.orchestration.daily_run"]
+CMD ["python", "-m", "polyevolve.orchestration.daily_run"]
