@@ -1,7 +1,7 @@
 # Target Architecture - agentic market-experiment platform
 
-Goal: run **many** $0 experiments across market categories to find a tradeable edge,
-**without fooling ourselves**. Belief is earned only by forward, out-of-sample results.
+Goal: run **many** $0 experiments across market categories to find a tradeable edge.
+Belief is earned only by forward, out-of-sample results.
 
 ## The shape
 
@@ -12,7 +12,7 @@ Goal: run **many** $0 experiments across market categories to find a tradeable e
    │                                        esports·pop-culture · …         │
    └───────────────────────────────┬──────────────────────────────────────┘
                                     │
-  ══════════ EXPLORATION  (cheap · $0 · unlimited · "fool-yourself" zone) ══════════
+  ══════════ EXPLORATION  (cheap · $0 · unlimited · in-sample) ════════════════════
                                     │
         ┌───────────────┐   ┌───────▼────────┐
         │  SCOUT        │──►│  HARNESS       │   one path for every experiment:
@@ -26,12 +26,12 @@ Goal: run **many** $0 experiments across market categories to find a tradeable e
                             └───────┬────────┘
                           fail ◄────┤ pass
                          discard    │   (spent $0, belief = 0)
-  ═══════════ CONFIRMATION  (the un-foolable gate · forward only) ═══════════
+  ═══════════ CONFIRMATION  (forward only · out-of-sample) ═══════════
                                     │
                       ┌─────────────▼───────────────┐
                       │  FORWARD PAPER-BET LEDGER    │  log prediction + price NOW,
                       │  auto-grade AT RESOLUTION    │  grade vs reality later,
-                      │  calibration + FDR per cat.  │  (un-overfittable, un-fakeable)
+                      │  calibration + FDR per cat.  │  (out-of-sample, graded vs reality)
                       └─────────────┬───────────────┘
                                     │  forward-confirmed track record
                                     ▼
@@ -74,7 +74,7 @@ discovery, the failure mode of "run a bunch of experiments to see what sticks."
 **Two LLM roles, kept separate:**
 - **Model-as-Forecaster** (scored): in = question + assembled research + prompt,
   **price-free + point-in-time**; out = calibrated `P(YES)` + confidence + reasoning
-  trace. **Swappable, NOT the bottleneck** (parity was bad inputs, not a weak model).
+  trace. **Swappable** - the bottleneck has been input quality, not model capability.
 - **Agents-as-Workforce** (never directly scored): research agents *assemble & verify*
   inputs (real poll tables, pollster bias, candidacy checks); review agents *audit* the
   stored reasoning traces (catch hallucination, extract through-lines, fix inputs/rules).

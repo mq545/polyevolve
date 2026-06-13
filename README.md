@@ -29,9 +29,10 @@ Venue-agnostic (Polymarket + Kalshi). Paper predictions only - no live trading.
 ## Quickstart
 
 ```bash
-git clone <repo> && cd polymarket-agents
+git clone https://github.com/mq545/polyevolve && cd polyevolve
 uv sync                                    # installs deps + the `polyevolve` CLI
 docker compose up -d postgres              # Postgres (ledger + market dataset)
+# optional: cp .env.example .env to point at a hosted model; the default runs local Ollama
 
 # 1. SCOUT - where is the crowd thin right now? (live, no model needed)
 uv run polyevolve scout
@@ -99,25 +100,6 @@ exploration -> confirmation funnel and the 8-check rubric.
 - LiteLLM (one client for every provider: local Ollama / vLLM / Anthropic / OpenAI)
 - httpx, pydantic, apscheduler
 
-## Setup
-
-```bash
-# Install dependencies and create venv
-uv sync
-
-# Copy env template and fill in keys
-cp .env.example .env
-$EDITOR .env
-
-# Start Postgres
-docker compose up -d postgres
-```
-
-The day-to-day entrypoint is the `polyevolve` CLI (see the Quickstart above). The
-older `polyevolve.orchestration.daily_run` / `evaluate` modules are the legacy,
-pre-plugin foreign-politics pipeline and the offline snapshot/backtest path; they
-remain for the evolution experiments but new work goes through `polyevolve run`.
-
 ## Observability
 
 Every LLM call is traced to the Postgres `llm_calls` table - prompt, response,
@@ -134,23 +116,9 @@ uv run polyevolve traces --limit 25        # recent LLM calls
 uv run polyevolve traces --market 597964   # calls for one market
 ```
 
-For ad-hoc SQL, install a Postgres client in WSL and connect to the published
-port:
-
-```bash
-sudo apt install -y postgresql-client
-psql postgresql://superpod:superpod@localhost:5432/superpod
-# then: SELECT * FROM v_calibration_vs_market;
-```
-
-Inspection views: `v_recent_predictions`, `v_run_summary`, `v_cost`,
-`v_market_coverage`, `calibration`, `v_calibration_vs_market`.
-
-**Langfuse (optional LLM tracing UI):** off by default. Postgres tracing covers
-the SQL/CLI path; Langfuse adds a browser UI with per-call traces and
-calibration scoring. Enable by setting `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`
-(+ `uv add langfuse`) - see `.env.example`. Cloud free tier is the fastest start;
-self-hosting is a multi-container stack, deferred until needed.
+Inspection views (for ad-hoc SQL): `v_recent_predictions`, `v_run_summary`, `v_cost`,
+`v_market_coverage`, `calibration`, `v_calibration_vs_market`. A browser tracing UI
+(Langfuse) is optional and off by default - see `.env.example`.
 
 ## Architecture
 
@@ -181,7 +149,7 @@ fc    = pe.forecast(best.genome, qs[0], pools[0])
 | `evolve/` | the built-in knob optimizer + `evolve/shinka/` (full-program search via Sakana ShinkaEvolve) |
 | `harness/` | `run_experiment` → the 8-check `rubric` |
 | `ledger/` | the forward paper-bet ledger (the confirmation gate) |
-| `models/` | `build_model` (Anthropic direct / LiteLLM) + `coerce_rows` |
+| `models/` | `build_model` (one LiteLLM client for every provider) + `coerce_rows` |
 | `scout/`, `observability/`, `storage/` | efficiency map · LLM tracing · Postgres |
 
 **2. The offline pipeline** (builds the data the surface reads): `orchestration/snapshot.py`
@@ -219,13 +187,3 @@ routing or keys are threaded through the code.
    ```
 4. Run normally - `uv run polyevolve run --forecaster baseline ...` (the local model
    serves any LLM forecaster; the `baseline` forecaster needs no model at all).
-
-Caveat: local models calibrate worse than frontier models on probabilistic forecasting. The local path is the default for everything here; point `DEFAULT_MODEL` at `anthropic/claude-sonnet-4-6` (or another hosted model) if you want to compare a frontier model on the calibration measurement.
-
-## Roadmap
-
-- **v0** - single agent, foreign politics, text-only data, paper predictions, calibration measurement
-- **v1** - data ingestion + calibration correction layer + hardcoded risk gate
-- **v2** - multi-agent ensemble + offline evolutionary loop
-- **v3** - live evolutionary loop with hard guardrails (kill switches, holdout requirements)
-- **v4+** - execution layer (Kalshi US-legal; Polymarket non-US only)
