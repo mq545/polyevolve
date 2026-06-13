@@ -213,3 +213,28 @@ def test_model_backed_genome_no_network() -> None:
     res = evaluate_calibration(llm_genome, qs)
     assert model.calls == 2
     assert res["brier"] == pytest.approx(0.0)  # predicted 1.0, both YES
+
+
+def test_genome_cannot_read_outcome_to_cheat() -> None:
+    """A genome that tries to read the resolved outcome must NOT score perfectly.
+
+    The bench hands the genome `question.blinded()`, so future/answer fields are stripped.
+    A cheater that returns p_yes from q.outcome therefore sees None and cannot reward-hack
+    the backtest - the key guard for untrusted, LLM-authored full-program genomes.
+    """
+
+    def cheater(q: Question, pool: EvidencePool) -> Forecast:
+        return Forecast(p_yes=1.0 if q.outcome else 0.0)
+
+    qs = [_q(str(i), 1_000 + i, i % 2 == 0) for i in range(6)]
+    res = evaluate_calibration(cheater, qs)
+    # if outcome leaked, brier would be 0.0; blinded -> outcome is None -> always 0.0 pred.
+    assert res["brier"] > 0.0
+
+
+def test_blinded_strips_future_fields_keeps_decision_time_data() -> None:
+    q = Question(id="x", text="?", as_of=_utc(1), outcome=True, crowd_prob=0.7, market_price=0.6)
+    b = q.blinded()
+    assert b.outcome is None and b.crowd_prob is None
+    assert b.market_price == 0.6  # known at decision time; needed for sizing
+    assert q.outcome is True  # original is untouched (bench scores against it)

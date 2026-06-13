@@ -64,6 +64,18 @@ class Question(BaseModel):
     event_id: str | None = None  # correlated markets share this -> one independent obs
     lead_days: int | None = None  # as_of -> resolution, for regime bucketing
 
+    def blinded(self) -> Question:
+        """A copy safe to hand an UNTRUSTED genome: future/answer fields stripped.
+
+        Drops the resolved ``outcome`` (future information) and the ``crowd_prob`` (the
+        crowd's own answer) so no genome - including LLM-authored, full-program ones that
+        receive the raw object - can read the result and reward-hack a backtest. The bench
+        always scores against the TRUE outcome it keeps separately. ``market_price`` is
+        retained: it is known at decision time and is needed for net-of-spread sizing
+        (the forecaster prompt never renders it - see reason.nodes._question_block).
+        """
+        return self.model_copy(update={"outcome": None, "crowd_prob": None})
+
 
 class Forecast(BaseModel):
     """A genome's output for one question."""

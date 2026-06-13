@@ -48,7 +48,7 @@ def evaluate_return(
             continue
         pool = pools[i] if pools is not None else EvidencePool(items=[])
         try:
-            fc = genome(q, pool)
+            fc = genome(q.blinded(), pool)  # genome never sees the resolved outcome
         except Exception:
             continue
         forecasts.append((q, fc))

@@ -10,8 +10,11 @@ Public surface:
   - temporal_split / event_cluster           : leakage-safe splits (splits.py)
   - evaluate_calibration                     : run a genome -> {'brier','ece','n'}
 
-The genome NEVER sees `Question.outcome` / `crowd_prob` / `market_price`; only
-the bench reads them when scoring.
+The genome is handed `question.blinded()` - the resolved `outcome` and the crowd's
+`crowd_prob` are stripped, so it cannot read the answer and reward-hack the backtest (the
+bench keeps the true outcome separately for scoring). `market_price` is retained: it is
+known at decision time and feeds net-of-spread sizing, and is never rendered into the
+forecaster prompt (see reason.nodes._question_block).
 
 A second fitness axis - net-of-spread realized PnL, not just calibration - lives in
 `returns.py` as `evaluate_return(genome, questions, pools, ...)`, which runs forecasts
@@ -71,7 +74,7 @@ def evaluate_calibration(
             continue
         pool = pools[i] if pools is not None else EvidencePool(items=[])
         try:
-            forecast = genome(q, pool)
+            forecast = genome(q.blinded(), pool)
         except Exception:
             continue
         pairs.append((float(forecast.p_yes), bool(q.outcome)))
@@ -112,7 +115,7 @@ def evaluate_calibration_selective(
             continue
         pool = pools[i] if pools is not None else EvidencePool(items=[])
         try:
-            fc = genome(q, pool)
+            fc = genome(q.blinded(), pool)
         except Exception:
             continue
         pair = (float(fc.p_yes), bool(q.outcome))

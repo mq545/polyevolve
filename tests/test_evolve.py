@@ -192,9 +192,12 @@ def test_prompt_mutation_uses_injected_model_no_network() -> None:
 # real calibration fitness over a trivial deterministic genome (no network, no LLM).
 # --------------------------------------------------------------------------------------
 def test_calibration_fitness_is_negative_brier() -> None:
-    perfect: Genome = lambda q, pool: Forecast(p_yes=1.0 if q.outcome else 0.0)  # noqa: E731
+    # A genome cannot read q.outcome (the bench blinds it), so build a "perfect" forecast
+    # the honest way: predict 1.0 on questions that all resolve YES -> brier 0 -> fitness 0.
+    all_yes = [_q("y1", True), _q("y2", True)]
+    always_yes: Genome = lambda q, pool: Forecast(p_yes=1.0)  # noqa: E731
     fit = make_calibration_fitness()
-    assert fit(perfect, TRAIN) == pytest.approx(0.0)  # brier 0 -> fitness 0
+    assert fit(always_yes, all_yes) == pytest.approx(0.0)  # brier 0 -> fitness 0
 
     constant_half: Genome = lambda q, pool: Forecast(p_yes=0.5)  # noqa: E731
     assert fitness(constant_half, TRAIN) == pytest.approx(-0.25)
