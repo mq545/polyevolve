@@ -5,25 +5,25 @@
   </picture>
 </p>
 
-<p align="center"><em>Evolve trading strategies for prediction markets — and measure the edge without fooling yourself.</em></p>
+<p align="center"><em>Evolve trading strategies for prediction markets - and measure the edge without fooling yourself.</em></p>
 
 ---
 
 **PolyEvolve** turns a forecasting/trading strategy into a *genome* and **evolves** it
-against real, resolved Polymarket & Kalshi markets — optimizing for calibration or
+against real, resolved Polymarket & Kalshi markets - optimizing for calibration or
 net-of-spread return. Three things make it worth your time:
 
-- **🧬 Evolve, don't hand-tune.** `polyevolve evolve` searches strategy-space (prompts,
+- **Evolve, don't hand-tune.** `polyevolve evolve` searches strategy-space (prompts,
   ensembling, calibration, sizing, abstention) and reports the champion vs the seed on a
   **held-out** split. One line: `pe.evolve(markets, objective="return")`.
-- **🔌 Plug in your own.** Markets, research connectors, and forecasters are all **plugins** —
+- **Plug in your own.** Markets, research connectors, and forecasters are all **plugins** -
   ~20 lines + one decorator and the registry auto-discovers it. Your strategy runs through the
   same harness as everything else.
-- **🛡️ An honest harness.** Every result crosses the spread in an adversarial sim, clusters
-  correlated markets into events, and is graded **forward** in a paper-bet ledger — so a
+- **An honest harness.** Every result crosses the spread in an adversarial sim, clusters
+  correlated markets into events, and is graded **forward** in a paper-bet ledger - so a
   backtest can't lie to you (see [ARCHITECTURE.md](ARCHITECTURE.md) for the 8-check rubric).
 
-Venue-agnostic (Polymarket + Kalshi). Paper predictions only — no live trading.
+Venue-agnostic (Polymarket + Kalshi). Paper predictions only - no live trading.
 
 ## Quickstart
 
@@ -32,18 +32,18 @@ git clone <repo> && cd polymarket-agents
 uv sync                                    # installs deps + the `polyevolve` CLI
 docker compose up -d postgres              # Postgres (ledger + market dataset)
 
-# 1. SCOUT — where is the crowd thin right now? (live, no model needed)
+# 1. SCOUT - where is the crowd thin right now? (live, no model needed)
 uv run polyevolve scout
 
 # 2. BUILD a dataset of resolved markets to evolve against ($0, any domain)
 uv run polyevolve snapshot --set demo --domain all --min-volume 10000 \
     --no-research --limit 200
 
-# 3. EVOLVE a strategy — watch seed -> champion on a held-out split
+# 3. EVOLVE a strategy - watch seed -> champion on a held-out split
 uv run polyevolve evolve --snapshot-set demo --objective return
 ```
 
-`polyevolve evolve` runs the strategy genome with a local LLM (Ollama qwen3 by default — see
+`polyevolve evolve` runs the strategy genome with a local LLM (Ollama qwen3 by default - see
 [Model routing](#model-routing)) and prints the evolved champion's knobs and its holdout lift.
 Prefer code? The same loop is **six composable verbs**:
 
@@ -55,7 +55,7 @@ best = pe.evolve(qs, pools, objective="return")               # search strategy-
 print(best.knobs, best.val_fitness)                           # champion + its holdout score
 ```
 
-Adding your own forecaster/connector/market is the whole point — see
+Adding your own forecaster/connector/market is the whole point - see
 [Add your own](#add-your-own-the-whole-point).
 
 ## Add your own (the whole point)
