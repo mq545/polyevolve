@@ -7,9 +7,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Polite-pool API etiquette (Wikipedia, Wikimedia pageviews, etc.) asks for a contact
-# in the User-Agent. Set POLYEVOLVE_CONTACT to your email or project URL; the default is a
-# neutral placeholder so no personal info is hard-coded.
-CONTACT = os.environ.get("POLYEVOLVE_CONTACT", "https://github.com/your-org/polyevolve")
+# in the User-Agent. Set POLYEVOLVE_CONTACT to your own email or project URL; the default is
+# the project repo so the UA is always a reachable contact.
+CONTACT = os.environ.get("POLYEVOLVE_CONTACT", "https://github.com/mq545/polyevolve")
 USER_AGENT = f"polyevolve-forecaster/0.1 ({CONTACT})"
 
 
