@@ -41,11 +41,14 @@ apply as `state = node(...)(state)`). Compose them freely inside the EVOLVE-BLOC
   size_by_edge(kelly_frac=0.25)                        signed fractional-Kelly stake vs market price
 
 Rules: an estimate node (call_model/ensemble/latent_*/debate_critique) MUST run before
-calibrate/abstain/size. End with size_by_edge so the forecast carries a stake. Use only the
-names above (no imports, no I/O, no new helpers). `mid` and `key` are in scope."""
+calibrate/abstain/size, and end with size_by_edge so the forecast carries a stake. You are
+rewriting the top-level `predict(q, pool, mid, key) -> Forecast` function: build a
+ReasoningState, pipe it through nodes, and return `state.to_forecast()`. You MAY add or refactor
+helper functions in the block and call them from predict. `mid`/`key` are predict's args and
+`SYSTEM_PROMPT` is a module global - all already in scope. Do not add imports or I/O."""
 
 
-_SCAFFOLD = '''"""A PolyEvolve forecasting genome - the body below is evolved by ShinkaEvolve.
+_SCAFFOLD = '''"""A PolyEvolve forecasting genome - the predict() function is evolved by ShinkaEvolve.
 
 {toolbox}
 """
@@ -76,14 +79,22 @@ API_KEY = {api_key!r}
 SYSTEM_PROMPT = {system_prompt!r}
 
 
-def forecast(q: Question, pool: EvidencePool) -> Forecast:
-    """The evolvable genome. Fixed harness in/out; only the EVOLVE-BLOCK changes."""
+# EVOLVE-BLOCK-START
+def predict(q: Question, pool: EvidencePool, mid: str, key: str | None) -> Forecast:
+    """The evolvable genome: compose nodes into the state, then read off the Forecast.
+
+    Free to restructure entirely and to add helper functions in this block. Keep the
+    signature and the final `return state.to_forecast()`.
+    """
     state = ReasoningState(question=q, pool=pool)
-    mid, key = MODEL_ID, API_KEY
-    # EVOLVE-BLOCK-START
 {block}
-    # EVOLVE-BLOCK-END
     return state.to_forecast()
+# EVOLVE-BLOCK-END
+
+
+def forecast(q: Question, pool: EvidencePool) -> Forecast:
+    """Fixed entrypoint (the Genome the platform loads). Delegates to the evolved predict()."""
+    return predict(q, pool, MODEL_ID, API_KEY)
 '''
 
 

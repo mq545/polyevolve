@@ -639,7 +639,7 @@ def main() -> int:
     )
     p.add_argument(
         "--mutator",
-        default="local/qwen2.5:14b@http://localhost:11434/v1",
+        default="local/qwen3:30b-a3b-instruct-2507-q4_K_M@http://localhost:11434/v1",
         help="ShinkaEvolve mutation LLM (default: local Ollama, free)",
     )
     p.add_argument("--num-islands", type=int, default=2, help="shinka: island-model islands")

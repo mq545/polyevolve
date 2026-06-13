@@ -68,11 +68,13 @@ class ShinkaEvolveOptimizer:
         *,
         objective: Objective = "calibration",
         generations: int = 20,
-        mutator: str = "local/qwen2.5:14b@http://localhost:11434/v1",
+        mutator: str = "local/qwen3:30b-a3b-instruct-2507-q4_K_M@http://localhost:11434/v1",
         num_islands: int = 2,
         archive_size: int = 20,
         max_eval_jobs: int = 1,
         max_api_costs: float | None = None,
+        patch_types: list[str] | None = None,
+        patch_type_probs: list[float] | None = None,
         shinka_python: str = _DEFAULT_SHINKA_PYTHON,
         work_dir: str | Path | None = None,
         task_sys_msg: str = _DEFAULT_TASK_MSG,
@@ -85,6 +87,9 @@ class ShinkaEvolveOptimizer:
         self.archive_size = archive_size
         self.max_eval_jobs = max_eval_jobs
         self.max_api_costs = max_api_costs
+        # bias toward FULL rewrites: diffs are brittle on indentation-sensitive Python.
+        self.patch_types = patch_types or ["full", "diff"]
+        self.patch_type_probs = patch_type_probs or [0.7, 0.3]
         self.task_sys_msg = task_sys_msg
         self.keep_work_dir = keep_work_dir
         self._work_dir = work_dir
@@ -164,6 +169,8 @@ class ShinkaEvolveOptimizer:
                     "archive_size": self.archive_size,
                     "max_eval_jobs": self.max_eval_jobs,
                     "max_api_costs": self.max_api_costs,
+                    "patch_types": self.patch_types,
+                    "patch_type_probs": self.patch_type_probs,
                 }
             )
         )
@@ -175,6 +182,9 @@ class ShinkaEvolveOptimizer:
             "POLYEVOLVE_DATASET": str(dataset),
             "POLYEVOLVE_OBJECTIVE": self.objective,
         }
+        # local OpenAI-compatible mutators (Ollama/vLLM) need this sentinel key set.
+        if self.mutator.startswith("local/"):
+            env.setdefault("LOCAL_OPENAI_API_KEY", "local")
         launch = Path(__file__).parent / "launch.py"
         proc = subprocess.run(  # noqa: S603 - operator-controlled args/paths
             [str(self.shinka_python), str(launch), str(config)],
@@ -190,7 +200,15 @@ class ShinkaEvolveOptimizer:
             raise RuntimeError(f"no champion produced at {champion}")
 
         seed_tr, seed_va = self._score_program(initial, train_qs, train_pools, val_qs, val_pools)
-        champ_tr, champ_va = self._score_program(champion, train_qs, train_pools, val_qs, val_pools)
+        # If no offspring beat the seed, ShinkaEvolve's champion IS the seed program. With a
+        # stochastic forecaster, re-scoring it separately would manufacture a fake delta - so
+        # reuse the seed's scores rather than re-running the identical program.
+        if champion.read_text() == initial.read_text():
+            champ_tr, champ_va = seed_tr, seed_va
+        else:
+            champ_tr, champ_va = self._score_program(
+                champion, train_qs, train_pools, val_qs, val_pools
+            )
         return Result(
             best_knobs=seed_knobs,
             best_train_fitness=champ_tr,

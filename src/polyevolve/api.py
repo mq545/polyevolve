@@ -161,7 +161,7 @@ def evolve(
     seed_value: int = 0,
     progress: Callable[[int, int, float, float], None] | None = None,
     optimizer: str = "builtin",
-    mutator: str = "local/qwen2.5:14b@http://localhost:11434/v1",
+    mutator: str = "local/qwen3:30b-a3b-instruct-2507-q4_K_M@http://localhost:11434/v1",
     num_islands: int = 2,
     archive_size: int = 20,
 ) -> EvolveResult:
