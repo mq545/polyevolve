@@ -96,8 +96,7 @@ exploration -> confirmation funnel and the 8-check rubric.
 
 - Python 3.12 (managed by `uv`)
 - PostgreSQL 16 (Docker)
-- Anthropic SDK (direct, for production calibration runs)
-- LiteLLM (for local Ollama / OpenAI / multi-provider dev)
+- LiteLLM (one client for every provider: local Ollama / vLLM / Anthropic / OpenAI)
 - httpx, pydantic, apscheduler
 
 ## Setup
@@ -192,16 +191,19 @@ work goes through the surface above; these remain because they own data ingestio
 
 ## Model routing
 
-`DEFAULT_MODEL` decides which backend serves predictions:
+Every model goes through **LiteLLM**, so the model id IS the config: LiteLLM resolves the
+provider from the id and reads that provider's settings from the environment itself. Set
+`DEFAULT_MODEL` to any LiteLLM model string:
 
-| `DEFAULT_MODEL` value | Backend | Notes |
+| `DEFAULT_MODEL` value | Provider | Notes |
 |---|---|---|
-| `claude-sonnet-4-6` | Anthropic SDK (direct) | Default. Full feature set: prompt caching + adaptive thinking. |
-| `claude-opus-4-7`, `claude-haiku-4-5` | Anthropic SDK (direct) | Same path. |
-| `ollama/qwen3:30b-a3b-instruct-2507-q4_K_M` (or any `ollama/...`) | LiteLLM → local Ollama | For dev iteration on the 3090. No caching. |
-| `openai/gpt-4o` (or any `openai/...`) | LiteLLM → OpenAI | If you ever want a cross-provider comparison. |
+| `ollama/qwen3:30b-a3b-instruct-2507-q4_K_M` (any `ollama/...`) | local Ollama | Default path. Defaults to `localhost:11434`; `OLLAMA_API_BASE` to override. |
+| `hosted_vllm/<model>` | local vLLM | High-throughput local serving; set `VLLM_API_BASE`. |
+| `anthropic/claude-sonnet-4-6` | Anthropic | Reads `ANTHROPIC_API_KEY`. |
+| `openai/gpt-4o` | OpenAI | Reads `OPENAI_API_KEY`. |
 
-Any model ID containing `/` routes through LiteLLM; bare Claude IDs go direct.
+There is one model client (`build_model` → a LiteLLM-backed `Model`); no per-provider
+routing or keys are threaded through the code.
 
 ### Running locally on Ollama
 
@@ -218,7 +220,7 @@ Any model ID containing `/` routes through LiteLLM; bare Claude IDs go direct.
 4. Run normally - `uv run polyevolve run --forecaster baseline ...` (the local model
    serves any LLM forecaster; the `baseline` forecaster needs no model at all).
 
-Caveat: local models calibrate worse than Claude on probabilistic forecasting. Use the local path for plumbing tests and dev iteration; switch back to `claude-sonnet-4-6` for the actual calibration measurement that decides whether the thesis works.
+Caveat: local models calibrate worse than frontier models on probabilistic forecasting. The local path is the default for everything here; point `DEFAULT_MODEL` at `anthropic/claude-sonnet-4-6` (or another hosted model) if you want to compare a frontier model on the calibration measurement.
 
 ## Roadmap
 
